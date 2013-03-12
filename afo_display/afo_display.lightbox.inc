@@ -18,10 +18,10 @@ function theme_afo_display_lightbox($nids, $title=null, $op='artwork', $options=
 	$nodes = afo_display_data_get_slides($nids, $op);
 	if(!is_array($nodes)) return null;
 
-	// add includes for slide show
-	drupal_add_js(drupal_get_path('module', 'afo_display').'/lightbox.js');
-	drupal_add_css(drupal_get_path('module', 'afo_display').'/lightbox.css');
-	jquery_ui_add(array('ui.draggable', 'ui.resizable', 'ui.dialog'));
+	// add includes for slide show TESTN
+//	drupal_add_js(drupal_get_path('module', 'afo_display').'/lightbox.js');
+//	drupal_add_css(drupal_get_path('module', 'afo_display').'/lightbox.css');
+//	jquery_ui_add(array('ui.draggable', 'ui.resizable', 'ui.dialog'));
 	
 	// build slide show
 	$content = afo_display_build_lightbox($nodes, $options);

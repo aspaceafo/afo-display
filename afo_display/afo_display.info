@@ -3,3 +3,4 @@ name = AFO Display
 description = Adds theme and display functions for AFO site.
 core = 6.x
 package = AFO Custom
+dependencies[] = jquery_ui
