@@ -1,0 +1,111 @@
+.afo-grid
+{
+	clear: both;
+	margin: 15px 0;
+}
+
+.afo-grid .grid-item
+{
+	float: left;
+	margin: 0 30px 40px 0;
+	width: 120px;
+	height: 150px;
+}
+
+.tightGrid .grid-item
+{
+	margin: 0 10px 10px 0;
+	height: 140px;
+}
+
+.grid-title
+{
+	margin-bottom: 10px;
+}
+
+.afo-grid .item-title,
+.afo-grid .item-user
+{
+	font-size: .85em;
+	line-height: 1.5em;
+	background-color: #fff;
+	position: relative;
+	z-index: 100;
+}
+.afo-grid .item-title
+{
+	font-style: italic;
+}
+.afo-grid .item-label-title
+{
+	font-size: 1.25em;
+	font-weight: bold;
+	text-align: right;
+}
+
+/** grid item expanded **/
+.afo-grid .grid-item.expanded
+{
+}
+.afo-grid .grid-item .expanded-view
+{
+	position: absolute;
+	z-index: 300;
+	width: 250px;
+	height: 300px;
+	background-color: #fff;
+	padding: 0 0 50px 0;
+}
+.afo-grid .grid-item .expanded-view .hit-area
+{
+	width: 90px;
+	height: 90px;
+	position: absolute;
+}
+.afo-grid .grid-item .expanded-view a,
+.afo-grid .grid-item .expanded-view a:visited,
+.afo-grid .grid-item .expanded-view a:hover
+{
+	text-decoration: none;
+}
+
+.afo-grid .grid-item .item-image-expanded
+{
+	float: none;
+	display: block;
+}
+
+/** buttons **/
+.afo-grid .grid-item .imageButtons
+{
+	position: absolute;
+	text-align: right;
+	width: 90px;
+	z-index: 100;
+}
+
+/** text-wide settings: for open calls etc. **/
+.afo-grid .grid-item.text-wide
+{
+	clear: both;
+	width: 500px;
+	margin: 0 0 50px 0;
+	height: auto;
+}
+
+.afo-grid .text-wide .item-thumbnail 
+{
+}
+
+.afo-grid .text-wide .item-title
+{
+	font-size: 1.3em;
+	font-style: none;
+}
+.afo-grid .text-wide .item-deadline,
+.afo-grid .text-wide .item-user
+{
+	font-size: .8em;
+	line-height: 1.2em;
+	color: #666;
+}

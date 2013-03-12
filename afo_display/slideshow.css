@@ -1,0 +1,76 @@
+.afo-slideshow
+{
+	clear: both;
+	display: block;
+	position: static;
+}
+.afo-slideshow-artwork_medium
+{
+	width: 250px;
+	height: 300px;
+}
+.afo-slideshow-artwork_full
+{
+	width: 500px;
+	height: 550px;
+}
+
+.afo-slideshow-inner
+{
+	margin: 10px 0 30px 0;
+}
+.afo-slideshow .afo-slideshow-title
+{
+	font-size: 1.3em;
+}
+.afo-slideshow .afo-slide
+{
+	display: none;
+}
+.afo-slideshow .current
+{
+	display: block;
+}
+
+.afo-slideshow .afo-slide-image
+{
+	position: static;
+	z-index: 100;
+}
+.afo-slideshow .afo-slide-controls
+{
+	display: none;
+	position: absolute;
+	z-index: 110;
+	background-color: #ffffff;
+}
+.afo-slideshow .afo-slide-controls a,
+.afo-slideshow .afo-slide-controls a:visited,
+.afo-slideshow .afo-slide-controls a:hover,
+.afo-slideshow .afo-slide-controls a.active
+{
+	text-decoration:none;
+}
+
+.afo-slideshow .afo-slide-controls .afo-slide-button
+{
+	position: relative;
+	margin: 10px;
+	color: #000000;
+	font-size: 20px;
+	float: left;
+}
+.afo-slideshow .afo-slide-image .afo-slide-button-target-next
+{
+}
+
+.afo-slideshow .afo-slide-info
+{
+	padding: 1px 15px 0 0;
+	background-color: #ffffff;
+}
+
+.afo-slideshow .afo-slide-info .title
+{
+	font-style: italic;
+}

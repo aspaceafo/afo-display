@@ -1,0 +1,481 @@
+.horiz-clear
+{
+	clear: both;
+	height: 1px;
+	overflow: hidden;
+}
+
+.hide
+{
+	display: none;
+}
+
+/************************ Fields **/
+
+/** basic image (open call, event, etc) -- not artwork **/
+.field-field-image
+{
+	float: left;
+	margin-right: 20px;
+}
+
+/************************ Message (non-drupal) **/
+
+.message
+{
+	width: 540px;
+	margin: 10px 0;
+	padding: 8px 10px;
+	border: 1px dashed #ccc;
+	color: #888;
+	font-size: 1.4em;
+}
+
+/************************ User info block **/
+.user-info-region
+{
+	margin-top: 6px;
+	font-size: .8em;
+	line-height: 1.4em;
+}
+.user-info-region,
+.user-info-region a,
+.user-info-region a:link,
+.user-info-region a:visited
+{
+	color: #999;
+}
+.user-info-region a:hover
+{
+	color: #003877;
+}
+
+.user-info-statement
+{
+	font-size: .85em;
+}
+
+/************************ Thumbnails **/
+.icon-video
+{
+	position: absolute;
+}
+.thumbnail-label
+{
+	position: absolute;
+	z-index: 200;
+	width: 90px;
+	font-size: .8em;
+	line-height: 1.2em;
+	background-color: #fff;
+	opacity: 0.7;
+}
+a .thumbnail-label,
+a:link .thumbnail-label,
+a:visited .thumbnail-label,
+a:hover .thumbnail-label,
+a:focus .thumbnail-label
+{
+	color: #000;
+	text-decoration: none;
+}
+
+/************************ Deadlines **/
+
+.afo-deadline 
+{
+	font-size: .9em;
+}
+.node .afo-deadline
+{
+	margin-bottom: 12px;
+}
+.afo-deadline-notice
+{
+	font-weight: bold;
+	text-transform: uppercase;
+}
+
+/************************ Lists **/
+ul.arrow,
+.item-list ul.arrow
+{
+	margin-left: 20px;
+}
+ul.arrow li,
+.item-list ul.arrow li
+{
+	list-style-image: url("images/list-bullet-green.png");
+	list-style-position: outside;
+	margin-left: 0;
+}
+ul.arrow li ul li,
+.item-list ul.arrow li ul li
+{
+	list-style-image: none;
+	margin-left: 20px;
+}
+
+ul.tightList li,
+.item-list ul.tightList li
+{
+	margin-bottom: 5px;
+}
+
+/************************ Title icons **/
+
+ul.eventsListSmall li
+{
+	margin-bottom: 18px !important;
+}
+ul.eventsListSmall li .thumbnail img
+{
+	float: left;
+	vertical-align: top;
+	margin-right: 6px;
+}
+ul.eventsListSmall li .thumbnail-label
+{
+	display: none;
+}
+
+
+/************************ Title icons **/
+.title-icon
+{
+	float: left;
+	margin-right: 30px;
+}
+
+/************************ Columns **/
+.afo-column
+{
+	width: 325px;
+	float: left;
+}
+.afo-column-inner
+{
+	margin: 10px 0;
+}
+.position-left .afo-column-inner
+{
+	margin-right: 25px;
+	margin-left: 0;
+}
+.position-center .afo-column-inner
+{
+	margin-right: 25px;
+	margin-left: 25px;
+}
+.position-right .afo-column-inner
+{
+	margin-right: 0;
+	margin-left: 25px;
+}
+
+/************************ Content box **/
+.afo-contentbox
+{
+	margin: 0 10px 45px 0;
+	max-width: 600px;
+	/*border-bottom: 1px solid #CCCCCC;*/
+}
+.afo-contentbox-inner
+{
+	margin-bottom: 16px;
+}
+
+/************************ AFO tables **/
+.afo-table
+{
+	border: none;
+}
+.afo-table td
+{
+	padding: 0 25px 50px 0;
+	width: auto;
+	vertical-align: top;
+}
+.afo-table .item-title
+{
+	font-size: 1.5em;
+}
+
+/************************ Tag cloud **/
+.afo-cloud-tag
+{
+	float: left;
+}
+.afo-cloud-tag a:hover,
+.afo-cloud-tag a:focus
+{
+	color: #ff0000;
+	text-decoration: none;
+}
+
+/************************ Filters **/
+.filters-throbber
+{
+	z-index: 100;
+	position: absolute;
+}
+
+/************************ Featured items **/
+.featured-item-full
+{
+	clear: both;
+}
+.featured-item-full .featured-thumbnail
+{
+	float: left;
+	margin: 0 10px 10px 0;
+}
+
+/************************ Checklist **/
+.afo-checklist
+{
+	color: #999;
+}
+.afo-checklist .current
+{
+	color: #ff0000;
+}
+.afo-checklist-item
+{
+	margin: 5px 0 10px 0;
+}
+.afo-checklist-item-inner
+{
+	margin: 8px;
+}
+.afo-checklist .title
+{
+	font-size: 1.2em;
+}
+.afo-checklist .description
+{
+	font-size: .9em;
+	margin: 3px 0 15px 20px;
+	line-height: 1.2em;
+}
+
+/************************ Control panel **/
+.afo-cp-section
+{
+	margin-bottom: 16px;
+	border-top: 1px solid #eee;
+	clear: both;
+}
+.afo-cp-section .title
+{
+	text-transform: uppercase;
+	font-size: .7em;
+	color: #777;
+}
+.afo-cp-item
+{
+	float: left;
+	width: 85px;
+	height: auto;
+	margin: 0 0 0 40px;
+	font-size: 1em;
+	line-height: 1em;
+	text-align: center;
+}
+.afo-cp-item a,
+.afo-cp-item a:link,
+.afo-cp-item a:visited
+{
+	color: #008000;
+}
+.afo-cp-item a:hover,
+.afo-cp-item a:focus
+{
+	text-decoration: none;
+	color: #000;
+}
+
+/************************ Open Calls Listing **/
+.afo-opencall-list
+{
+	clear: both;
+}
+.afo-opencall-list-inner
+{
+	margin: 20px 0;
+}
+.afo-opencall-listing
+{
+}
+.afo-opencall-listing .listing-title
+{
+	font-size: 1.15em;
+}
+
+/************************ Open Calls Submission listing **/
+.afo-opencall-submission .listing-ignore,
+.afo-opencall-submission .listing-ignore .form-item-tiny
+{
+	float: right;
+	width: auto;
+}
+
+/************************ Blog list **/
+ul.afo-blog-list li,
+.item-list ul.afo-blog-list li
+{
+	list-style-type: none;
+}
+ul.blog-display-normal li,
+.item-list ul.blog-display-normal li
+{
+	margin-bottom: 50px;
+}
+.afo-blog-list .blog-image
+{
+	float: left;
+	margin-right: 10px;
+}
+
+/************************ Queue **/
+a.afo-queue-add
+{
+	position: absolute;
+	background: #fff;
+}
+#afo-queue-box,
+#afo-queue-button
+{
+	position: fixed;
+	left: 0;
+	bottom: 0;
+	width: 100%;
+	background-color: #eee;
+	border-top: 1px solid #999;
+}
+.active-highlight,
+#afo-queue-button.active-highlight
+{
+	background-color: #C2FCC2 !important;
+}
+#afo-queue-box
+{
+	z-index: 1000;
+	height: 110px;
+}
+#afo-queue-box.closed
+{
+	display: none;
+}
+#afo-queue-box-inner
+{
+	margin: 0 15px;
+}
+#afo-queue-button
+{
+	z-index: 999;
+	height: auto;
+	text-align: center;
+	padding: 5px 10px;
+}
+.afo-queue-scroll
+{
+	position: absolute;
+	bottom: 0;
+	width: 15px;
+	height: 110px;
+	z-index: 2100;
+	background-color: #eee;
+}
+.afo-queue-scroll-left
+{
+	left: 0;
+}
+.afo-queue-scroll-right
+{
+	right: 0;
+}
+#afo-queue-controls
+{
+	position: absolute;
+	height: 110px;
+	z-index: 110;
+	background-color: #eee;
+	width: auto;
+}
+#afo-queue-controls-inner
+{
+	margin: 10px;
+}
+#afo-queue
+{
+	position: absolute;
+	width: auto;
+	z-index: 100;
+	margin-left: 65px;
+}
+#afo-queue-inner
+{
+	margin: 10px 10px 0 10px;
+}
+table.afo-queue-table,
+table.afo-queue-table tbody
+{
+	margin: 0;
+	padding: 0;
+}
+.afo-queue-table td
+{
+	padding: 0;
+}
+#afo-queue .afo-queue-table td img
+{
+	margin-right: 20px;
+}
+/** queue page **/
+#afo-queue-page
+{
+	margin: 20px 0;
+}
+#afo-queue-page .afo-queue-item
+{
+	float: left;
+	width: 120px;
+	margin: 0 15px 15px 0;
+}
+
+
+/************************ View option controls **/
+.afo-viewoptions
+{
+}
+.afo-viewoptions .afo-viewoptions-inner
+{
+}
+
+/************************ Home page **/
+/** sign in / membership box **/
+#block-afo_custommenu-5
+{
+	width: 200px;
+	background-color: #fff;
+	border-color: 1px solid #666;
+}
+#block-afo_custommenu-5 input.form-text
+{
+	width: 169px !important;
+}
+
+/************************ Membership payments table **/
+.afo-member-payments-table tr.paid
+{
+	background-color: #fff;
+}
+
+/************************ Member Benefits list **/
+.member-benefits-list-item
+{
+	margin: 0;
+	padding: 3px 8px;
+	border: 1px solid #efefef;
+}
