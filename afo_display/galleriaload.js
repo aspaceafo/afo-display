@@ -2,12 +2,14 @@
 
 
 $(document).ready(function() {
-	Galleria.loadTheme('http://local-artists.org/dev/sites/all/modules/custom/afo_display/galleria/themes/azur/galleria.azur.min.js');
+	Galleria.loadTheme('http://local-artists.org/prod/sites/all/modules/custom/afo_display/galleria/themes/azur/galleria.azur.min.js');
 	Galleria.run('#galleria', {
 		showinfo: false,
 		_showTooltip: false,
+		maxScaleRatio: '1',
 		_locale: {
 			show_captions: ' ',
+				
 		},
 
 
