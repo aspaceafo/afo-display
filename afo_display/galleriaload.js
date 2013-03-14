@@ -2,6 +2,9 @@
 
 
 $(document).ready(function() {
+	
+	$("#galleria").show();
+	
 	Galleria.loadTheme('http://local-artists.org/prod/sites/all/modules/custom/afo_display/galleria/themes/azur/galleria.azur.min.js');
 	Galleria.run('#galleria', {
 		showinfo: false,
