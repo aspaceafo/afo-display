@@ -168,10 +168,15 @@ if(Drupal.jsEnabled) {
 			$(this).addClass('active-page');
 
 			// switch active page
-			$(".widget-page.active-page").toggle("slide", { direction: "left" }, 500, function() {
+			$(".widget-page.active-page").toggle(500, function() {
+			//$(".widget-page.active-page").toggle("slide", { direction: "left" }, 500, function() {
 				$(".widget-page.active-page").removeClass('active-page');			
-				$("#browsenav-page-"+showPage).toggle("slide", { direction: "right" }, 500);
-				$("#browsenav-page-"+showPage).addClass('active-page');			
+				
+				$("#browsenav-page-"+showPage).toggle(500);
+			    //$("#browsenav-page-"+showPage).toggle("slide", { direction: "right" }, 500);
+				
+				$("#browsenav-page-"+showPage).addClass('active-page');			              
+				
 			});
 			
 			return false;
