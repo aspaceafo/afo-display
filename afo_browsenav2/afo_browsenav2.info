@@ -1,0 +1,6 @@
+; $Id$
+name = AFO Browse Nav 2
+description = Adds navigation elements for browsing through data, version 2.
+core = 6.x
+package = AFO Custom
+dependencies[] = afo_display
