@@ -17,6 +17,7 @@ if(Drupal.jsEnabled) {
 	
 	
 		$(".afo-viewoptions a").click(function() {
+
 			$(".afo-viewoptions a").removeClass('active');
 			$(this).addClass('active');
 			
@@ -25,8 +26,16 @@ if(Drupal.jsEnabled) {
 		 	var closeClass = getURLParam(href, 'close');
 		 	
 		 	if(targetId.length > 0 && closeClass.length > 0) {
-			 	$("."+closeClass).hide();
-				$("#"+targetId).show();
+			
+			
+				if(targetId == "afo-exhibition-slides") {
+					$("."+closeClass).hide();
+					$("div#galleria").show();
+				}
+				else{
+					$("."+closeClass).hide();
+					$("#"+targetId).show();
+				}	
 			}
 		 	
 			return false;		
