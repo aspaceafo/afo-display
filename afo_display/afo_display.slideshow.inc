@@ -26,6 +26,40 @@ function theme_afo_display_slideshow($nids, $title=null, $op='artwork', $options
 
 		drupal_add_js(drupal_get_path('module', 'afo_display').'/galleria/galleria-1.2.8.min.js');
         
+
+	   /* 
+		$galleriascript = "		
+		   Galleria.loadTheme('http://local-artists.org/dev/sites/all/modules/custom/afo_display/galleria/themes/azur/galleria.azur.min.js');
+		    Galleria.run('#galleria', {
+				showinfo: false,
+				_showTooltip: false,
+				_locale: {
+					show_captions: ' ',
+				},
+
+
+				extend: function(options) {
+		            var gallery = this; // this is the gallery instance
+		            this.bind(Galleria.IMAGE, function(e) {
+		                var current = gallery.getData(gallery.getIndex());
+		                var currImg = current.original;
+		                var imgclass = $(currImg).attr('class'); //imgclass retreives current image's orignal classes
+						imgclass += ' ui-draggable';
+		                console.log(imgclass);
+						$(e.imageTarget).addClass(imgclass) //adds current image's original classes to current image 
+		            });
+		        },		
+		 	});
+		";
+         
+		drupal_add_js($galleriascript, $type = 'inline', $scope = 'footer'); //change the 2nd param to 'theme' if $myscript points to a theme .js file
+        
+	   
+	
+		drupal_add_js(drupal_get_path('module', 'afo_queue').'/afo_queue.js', $type='module', $scope = 'footer');//nh. this needs to go last
+		
+		//hidden
+		*/
 	    drupal_add_js('sites/all/modules/custom/afo_display/galleriaload.js', $type='module', $scope = 'footer'); //new idea
 				
 		jquery_ui_add(array('ui.core','ui.draggable', 'ui.droppable', 'ui.sortable'));
@@ -38,6 +72,17 @@ function theme_afo_display_slideshow($nids, $title=null, $op='artwork', $options
 		drupal_add_js('sites/all/libraries/jquery-ui/ui/minified/ui.draggable.min.js', $type='module', $scope = 'footer');
 		drupal_add_js('sites/all/libraries/jquery-ui/ui/minified/ui.droppable.min.js', $type='module', $scope = 'footer');
   	    drupal_add_js('sites/all/libraries/jquery-ui/ui/minified/ui.sortable.min.js', $type='module', $scope = 'footer');
+		/*
+		//end test
+		
+
+	//drupal_add_js($galleriascript, array('type' => 'inline', 'scope' => 'footer', 'weight' => 0);
+
+/*	 drupal_add_js(
+		'jQuery(document).ready(function () { alert("Hello!"); });',
+	    array('type' => 'inline', 'scope' => 'footer', 'weight' => 5)
+	);
+*/
 
 	}
 	drupal_add_css(drupal_get_path('module', 'afo_display').'/slideshow.css');
@@ -64,7 +109,7 @@ function afo_display_build_slideshow($nodes, $title=null, $options=array()) {
 	if(isset($options['id'])) $addId = 'id="'.$options['id'].'"';
 	if(isset($options['imagecache_preset'])) $options['classes'][] = 'afo-slideshow-'.$options['imagecache_preset']; 
 	if(is_array($options['classes'])) $addClasses = implode(' ', $options['classes']);
-	$content .= '<div id="galleria" class="afo-slideshow '.$addClasses.'" style="display:none;">';
+	$content .= '<div id="galleria" class="afo-slideshow '.$addClasses.'">';
 //	$content .= '<div '.$addId.' class="afo-slideshow '.$addClasses.'"><div class="afo-slideshow-inner">';
 
 	
