@@ -189,13 +189,24 @@ body .galleria-tooltip {
 }
 
 .galleria-info {
+
+/*
     position: absolute;
-/*  overflow: hidden;*/
+/*  overflow: hidden;
     left: 0;
     right: 0;
-    bottom: -160; /*dev*/
+    bottom: -160; 
     color: #000;
     z-index:2;
+	*/
+	
+	bottom: -114px;
+    color: #000000;
+    left: 0;
+    position: absolute;
+    right: 0;
+    z-index: 2;
+	
 }
 
 .galleria-info.toggler {
@@ -340,3 +351,7 @@ body .galleria-tooltip {
     right: 28px;
     left: 28px;
 } 
+
+div.galleria-counter {
+	display:none !important;
+	}
