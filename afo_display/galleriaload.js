@@ -1,13 +1,13 @@
+//try wrapping in document ready
+
+
 $(document).ready(function() {
 	Galleria.loadTheme('http://local-artists.org/dev/sites/all/modules/custom/afo_display/galleria/themes/azur/galleria.azur.min.js');
-	Galleria.configure({
-	    debug: false // debug is now off for deployment
-	});
 	Galleria.run('#galleria', {
 		showinfo: false,
 		_showTooltip: false,
 		_locale: {
-		show_captions: ' ',
+			show_captions: ' ',
 		},
 
 

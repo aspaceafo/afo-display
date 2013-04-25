@@ -109,7 +109,7 @@ function afo_display_build_slideshow($nodes, $title=null, $options=array()) {
 	if(isset($options['id'])) $addId = 'id="'.$options['id'].'"';
 	if(isset($options['imagecache_preset'])) $options['classes'][] = 'afo-slideshow-'.$options['imagecache_preset']; 
 	if(is_array($options['classes'])) $addClasses = implode(' ', $options['classes']);
-	$content .= '<div id="galleria" class="afo-slideshow '.$addClasses.'" style="display:none;">';
+	$content .= '<div id="galleria" class="afo-slideshow '.$addClasses.'">';
 //	$content .= '<div '.$addId.' class="afo-slideshow '.$addClasses.'"><div class="afo-slideshow-inner">';
 
 	
