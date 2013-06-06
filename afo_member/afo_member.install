@@ -1,0 +1,100 @@
+<?php
+// $Id$
+
+function afo_member_install() {
+	drupal_install_schema('afo_member');
+}
+
+function afo_member_uninstall() {
+	drupal_uninstall_schema('afo_member');
+}
+
+function afo_member_schema() {
+	$schema['afo_member_payments'] = array(
+		'description' => t('Records membership payments'),
+		'fields' => array(
+			'payment_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('Record unique id')
+			),				
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('The {user}.uid of the user'),
+			),
+			'timestamp' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Record timestamp.')
+			),
+			'extend_membership' => array(
+				'type' => 'int',	
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Amount the purchase extends the membership in days')
+			),				
+			'payment_total' => array(
+				'type' => 'numeric',	
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'precision' => 6,
+				'scale' => 2,
+				'description' => t('Payment dollar amount')
+			),				
+			'payment_status' => array(
+				'type' => 'int',	
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('Payment status')
+			),
+			'payment_order_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Ubercart Order Id'),
+			),
+		),
+		'primary key' => array(
+			'payment_id'
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'payment_order_id' => array('payment_order_id'),
+		),
+	);
+	
+	return $schema;
+	
+}
+
+/**
+ * Add ubercart order id to payments table
+ */
+function afo_member_update_6000() {
+	$ret = array();
+	
+	$field_spec = array(
+		'type' => 'int',
+		'unsigned' => TRUE,
+		'not null' => TRUE,
+		'default' => 0,
+		'initial' => 0,
+		'description' => t('Ubercart Order Id'),
+	);
+	
+	$new_keys = array(
+		'indexes' => array(
+			'payment_order_id' => array('payment_order_id'),
+		),
+	);
+	
+	db_add_field($ret, 'afo_member_payments', 'payment_order_id', $field_spec, $new_keys);
+	
+	return $ret;
+}

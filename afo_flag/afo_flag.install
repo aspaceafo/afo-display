@@ -1,0 +1,70 @@
+<?php
+// $Id$
+
+function afo_flag_install() {
+	drupal_install_schema('afo_flag');
+}
+
+function afo_flag_uninstall() {
+	drupal_uninstall_schema('afo_flag');
+}
+
+function afo_flag_schema() {
+	$schema['afo_flag_flags'] = array(
+		'description' => t('Stores flags.'),
+		'fields' => array(
+			'flag_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'size' =>  'normal',
+				'description' => t('The flag id.')
+			),				
+			'val' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The item value or id.'),
+			),
+			'flag_type' => array(
+				'type' => 'int',
+				'size' => 'small',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The flag type.'),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The flagging user {user}.uid.'),
+			),
+			'response' => array(
+				'type' => 'int',
+				'size' => 'small',
+				'unsigned' => TRUE,
+				'not null' => false,
+				'description' => t('The admin response.'),
+			),				
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.'),
+			),
+		),
+		'primary key' => array(
+			'flag_id'
+		),
+		'indexes' => array(
+			'val' => array('val'),
+			'flag_type' => array('flag_type'),
+		),
+	);
+	
+	return $schema;
+	
+}

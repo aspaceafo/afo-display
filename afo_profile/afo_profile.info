@@ -1,0 +1,5 @@
+; $Id$
+name = AFO Profile
+description = Adds functions to AFO user profiles.
+core = 6.x
+package = AFO Custom

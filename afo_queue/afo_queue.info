@@ -1,0 +1,5 @@
+; $Id$
+name = AFO Queue
+description = Allows users to create a viewing queue.
+core = 6.x
+package = AFO Custom

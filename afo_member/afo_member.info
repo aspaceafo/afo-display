@@ -1,0 +1,5 @@
+; $Id$
+name = AFO Membership
+description = Controls custom membership functions for AFO site.
+core = 6.x
+package = AFO Custom

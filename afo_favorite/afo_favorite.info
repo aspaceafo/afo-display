@@ -1,0 +1,5 @@
+; $Id$
+name = AFO Favorite
+description = Allows users to Favorite artworks and artists.
+core = 6.x
+package = AFO Custom

@@ -1,0 +1,6 @@
+; $Id$
+name = AFO Exhibition
+description = Adds properties to Exhibition node type.
+core = 6.x
+package = AFO Custom
+dependencies[] = afo_display

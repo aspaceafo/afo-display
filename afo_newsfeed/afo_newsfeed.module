@@ -1,0 +1,407 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Tracks and outputs user events as a Newsfeed.
+ */
+
+/****************************************************** SETTINGS **/
+
+/**
+ * Types of event.
+ */
+function afo_newsfeed_event_types() {
+	$types = array(
+		1 => 'create node', // arg0 = nid, arg1 = node type
+		2 => 'update node',
+		3 => 'update profile',
+		4 => 'included in exhibition', // arg0 = artwork nid, arg1 = exhibition nid
+		5 => 'added to exhibition', // arg0 = artwork nid, arg1 = exhibition nid
+		6 => 'user featured', // arg0 = uid, arg1 = feature id, arg2 = feature name
+		7 => 'node featured', // arg0 = nid, arg1 = feature id, arg2 = feature name
+	);
+	
+	return $types;
+}
+
+/**
+ * Return total possible number of args for events.
+ */
+function afo_newsfeed_argsnum() {
+	return 3;
+}
+
+/**
+ * Implentation of hook_menu().
+ */
+function afo_newsfeed_menu() {
+
+	$items['admin/settings/afo/newsfeed'] = array(
+		'title' => 'AFO Newsfeed Settings',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_newsfeed_admin_settings'),
+		'access arguments' => array('administer site settings'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_newsfeed.admin.inc',
+	);
+
+	$items['admin/settings/afo/newsfeed/create'] = array(
+		'title' => 'AFO Newsfeed Create Event',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_newsfeed_admin_create'),
+		'access arguments' => array('administer site settings'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_newsfeed.admin.inc',
+	);
+
+	return $items;
+}
+
+/**
+ * Implementation of hook_theme.
+ */
+function afo_newsfeed_theme() {
+  return array(
+    'newsfeed' => array(
+      'file' => 'afo_newsfeed.display.inc',
+      'arguments' => array(
+      	'newsfeed' => array(), 
+      	'op' => null,
+      ),
+    ),
+    'newsfeed_event' => array(
+      'file' => 'afo_newsfeed.display.inc',
+      'arguments' => array(
+      	'item' => array(),
+      	'op' => null,
+      ),
+    ),
+  );	
+}
+
+/****************************************************** RECORDING EVENTS **/
+
+/**
+ * Implementation of hook_nodeapi.
+ */
+function afo_newsfeed_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+
+	$register_types = variable_get('afo_newsfeed_register_types', array());
+	
+	switch($op) {
+		
+		case 'insert':
+
+			if(isset($register_types[$node->type]) && $register_types[$node->type] === $node->type) {
+
+				$uid = $node->uid;
+				$type_id = afo_newsfeed_event_convert('create node');
+				$args = array($node->nid, $node->type);
+				
+				afo_newsfeed_record_event($uid, $type_id, $args);
+
+			}
+
+			break;
+
+
+		case 'delete':
+			if(is_numeric($node->nid)) {
+				// remove newsfeed events featuring deleted node
+				db_query('DELETE FROM {afo_newsfeed_events} WHERE type_id IN (1,2,4,5,7) AND arg0 = %d', $node->nid);
+				db_query('DELETE FROM {afo_newsfeed_events} WHERE type_id IN (4,5) AND arg1 = %d', $node->nid);
+			}
+			
+			break;
+	}
+}
+
+/**
+ * Implementation of hook_user.
+ */
+function afo_newsfeed_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+		case 'delete':
+			// remove user's newsfeed records
+			if(is_numeric($account->uid)) {
+				db_query('DELETE FROM {afo_newsfeed_events} WHERE type_id IN (6) AND arg0 = %d', $account->uid);
+			}
+			break;
+	}
+}
+
+/**
+ * Implementation of hook_exhibition_itemadded.
+ * Custom hook from AFO Exhibition module. Fired when item added to exhibition.
+ */
+function afo_newsfeed_exhibition_itemadded($record) {
+
+	// item author feed
+	$uid = afo_newsfeed_get_author($record->item_nid);
+	$type_id = afo_newsfeed_event_convert('included in exhibition');
+	$args = array($record->item_nid, $record->exhibition_nid);
+	afo_newsfeed_record_event($uid, $type_id, $args);
+
+	// exhibition author feed
+	$uid = afo_newsfeed_get_author($record->exhibition_nid);
+	$type_id = afo_newsfeed_event_convert('added to exhibition');
+	$args = array($record->item_nid, $record->exhibition_nid);
+	afo_newsfeed_record_event($uid, $type_id, $args);
+
+}
+
+/**
+ * Implementation of hook_itemfeatured.
+ * Custom hook from AFO Featured module. Fired when node or user is featured.
+ */
+function afo_newsfeed_featured_itemfeatured($record, $op) {
+
+	if($record->feature_id) {
+	
+		$feature_name = db_result(db_query('SELECT feature_name FROM {afo_featured_types} WHERE feature_id = %d', $record->feature_id));	
+	
+		if($op=='user') {
+			$uid = $record->uid;
+			$type_id = afo_newsfeed_event_convert('user featured');
+			$args = array($record->uid, $record->feature_id, $feature_name);	
+		} elseif($op=='node') {
+			$uid = $record->admin_uid;
+			$type_id = afo_newsfeed_event_convert('node featured');
+			$args = array($record->nid, $record->feature_id, $feature_name);	
+		}
+	
+		if($uid) afo_newsfeed_record_event($uid, $type_id, $args);
+
+	}
+}
+
+/**
+ * Insert newsfeed event into record.
+ */
+function afo_newsfeed_record_event($uid, $type_id, $args=array(), $timestamp=0) {
+
+	if($timestamp == 0) $timestamp = time();
+
+	$record = new StdClass();
+	$record->uid = $uid;
+	$record->type_id = $type_id;
+	$record->timestamp = $timestamp;
+	
+	if($args[0]) $record->arg0 = $args[0];
+	if($args[1]) $record->arg1 = $args[1];
+	if($args[2]) $record->arg2 = $args[2];
+	
+	$success = drupal_write_record('afo_newsfeed_events', $record);
+	if($success) return $record;
+	else return FALSE;
+
+}
+
+/**
+ * Implementation of hook_delete
+ * Delete newsfeed items when node deleted
+ */
+function afo_newsfeed_delete(&$node) {
+	$success = db_query('DELETE FROM {afo_newsfeed_events} 
+	WHERE arg0 = %d AND (type_id=1 OR type_id=2 OR type_id=4 OR type_id=5 OR type_id=7)
+	', $node->nid);
+}
+
+/**
+ * Delete all newsfeed items associated with a given feature_id
+ */
+function afo_newsfeed_delete_featured($feature_id) {
+	if(!is_numeric($feature_id)) return null;
+	$success = db_query('DELETE FROM {afo_newsfeed_events} WHERE arg1 = %d AND (type_id=6 OR type_id=7)', $feature_id);
+	return $success;
+}
+
+/****************************************************** OUTPUTTING NEWSFEED **/
+
+/**
+ * Return themed newsfeed content
+ * can input set of uids as filter
+ */
+function afo_newsfeed_get($args = array()) {
+	module_load_include('inc', 'afo_newsfeed', 'afo_newsfeed.db');
+	$newsfeed = afo_newsfeed_output($args);
+
+	if(!is_array($newsfeed)) return null;
+	
+	// if themed option set, theme this content
+	if($args['themed']) $newsfeed = theme('newsfeed', $newsfeed);
+	
+	return $newsfeed;	
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_newsfeed_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = t('afo_newsfeed: User Newsfeed');
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+
+			$blocks[1]['info'] = t('afo_newsfeed: Recent Activity');
+			$blocks[1]['cache'] = BLOCK_NO_CACHE;
+
+			$blocks[2]['info'] = t('afo_newsfeed: Favorite Artists Activity');
+			$blocks[2]['cache'] = BLOCK_NO_CACHE;
+
+			return $blocks;
+			
+		case 'view':
+		
+			switch($delta) {
+			
+				case 0:
+					// user newsfeed block		
+					if(arg(0)=='user') $uid = arg(1);
+						
+					if(is_numeric($uid)) {
+		
+						module_load_include('inc', 'afo_newsfeed', 'afo_newsfeed.db');
+						$newsfeed = afo_newsfeed_output_ind($uid);
+						
+						if(is_array($newsfeed)) {
+							// show block
+							$block['subject'] = t('News Feed');
+							$block['content'] = theme('newsfeed', $newsfeed);
+							return $block;
+						}
+						else return NULL;				
+					}
+		
+					return NULL;
+					
+					
+				case 1:
+					// recent activity block
+					module_load_include('inc', 'afo_newsfeed', 'afo_newsfeed.db');
+					$newsfeed = afo_newsfeed_output();								
+
+					if(is_array($newsfeed)) {
+						$block['subject'] = t('Recent Updates');
+						$block['content'] = theme('newsfeed', $newsfeed);
+						return $block;
+					}
+					else return NULL;
+					
+					
+				case 2:
+					// favorite artists activity block
+					if(module_exists('afo_favorite') && function_exists('afo_favorite_get')) {
+						global $user;
+						$favorite_uids = afo_favorite_get_uids($user->uid);
+						if(is_array($favorite_uids)) {
+							$newsfeed = afo_newsfeed_get(array('uids'=>$favorite_uids, 'show all'=>true, 'numrows'=>20, 'themed'=>true));
+							if($newsfeed) {
+								$block['subject'] = t('Recent Activity By Your Favorites');
+								$block['content'] = $newsfeed;
+								return $block;
+							}
+						}
+					}
+					return NULL;
+			}
+
+	}
+}
+
+/****************************************************** UTILITIES **/
+
+/**
+ * Convert name or number of type into opposite.
+ */
+function afo_newsfeed_event_convert($arg) {
+	$types = afo_newsfeed_event_types();
+	if(is_numeric($arg)) {
+		return $types[$arg];
+	}
+	else {
+		$types = array_flip($types);
+		return $types[$arg];
+	}
+	return FALSE;
+}
+
+/**
+ * Return node author uid.
+ */
+function afo_newsfeed_get_author($nid) {
+	return db_result(db_query('SELECT uid FROM {node} WHERE nid=%d', $nid));
+}
+
+
+/****************************************************** VIEWS **/
+
+/**
+ * Implementation of hook_views_handlers().
+ */
+function afo_newsfeed_views_handlers() {
+  return array(
+    'handlers' => array(
+      'afo_newsfeed_views_handler_event' => array(
+        'parent' => 'views_handler_field',
+        'path' => drupal_get_path('module', 'afo_newsfeed'),
+      ),
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_views_data()
+ */
+function afo_newsfeed_views_data() {
+ 
+	/* ************************************* Newsfeed events table */
+
+	$data['afo_newsfeed_events']['table']['group']  = t('AFO Newsfeed Events');
+	
+	$data['afo_newsfeed_events']['table']['join'] = array(
+		'users' => array(
+			'left_field' => 'uid',
+			'field' => 'uid',
+		),
+	);
+
+	$data['afo_newsfeed_events']['event'] = array(
+		'title' => t('Newsfeed Event'),
+		'help' => t('Event in newsfeed.'), 
+		'field' => array(
+			'table' => 'afo_newsfeed_events',
+			'field' => 'event_id',
+			'handler' => 'afo_newsfeed_views_handler_event',
+			'click sortable' => FALSE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+	// timestamp
+	$data['afo_newsfeed_events']['timestamp'] = array(
+		'title' => t('Event Timestamp'),
+		'help' => t('Timestamp when event occurred.'),
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+	);
+	
+	return $data;
+
+}

@@ -1,0 +1,352 @@
+<?php
+// $Id$
+
+function afo_portfolio_install() {
+	drupal_install_schema('afo_portfolio');
+}
+
+function afo_portfolio_uninstall() {
+	drupal_uninstall_schema('afo_portfolio');
+}
+
+function afo_portfolio_schema() {
+	$schema['afo_portfolio_structure'] = array(
+		'description' => t('Order and hierarchy of portfolio artwork and folders'),
+		'fields' => array(
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The portfolio item {node}.nid.')
+			),
+			'weight' => array(
+				'type' => 'int',
+				'size' => 'small',
+				'unsigned' => FALSE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Item order weight.')
+			),
+			'folder_nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The enclosing item\'s {node}.nid.')
+			),
+		),
+		'primary key' => array(
+			'nid',
+		),
+		'indexes' => array(
+			'folder_nid' => array('folder_nid'),
+		),
+	);
+
+	$schema['afo_portfolio_artwork_data'] = array(
+		'description' => t('Data storage for extra artwork node fields'),
+		'fields' => array(
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The artwork {node}.nid.')
+			),
+			'year' => array(
+				'type' => 'int',
+				'size' => 'small',
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('Year artwork was created.')
+			),
+			'materials' => array(
+				'type' => 'varchar',
+				'length' => 100,
+				'not null' => FALSE,
+				'description' => t('Artwork media or materials.')
+			),
+			'dimensions' => array(
+				'type' => 'varchar',
+				'length' => 30,
+				'not null' => FALSE,
+				'description' => t('Artwork dimensions.')
+			),
+		),
+		'primary key' => array(
+			'nid',
+		),
+	);
+	
+	$schema['afo_portfolio_settings'] = array(
+		'description' => t('Artist portfolio settings'),
+		'fields' => array(
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The artist\'s {user}.uid.')
+			),
+			'view_type' => array(
+				'type' => 'int',
+				'size' => 'tiny',
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('View type setting.')
+			),
+		),
+		'primary key' => array(
+			'uid',
+		),
+	);
+	
+	$schema['afo_portfolio_term_user_total'] = array(
+		'description' => t('Term user totals for taxonomy terms.'),
+		'fields' => array(
+			'tid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The term tid.')
+			),
+			'total' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Term user count total.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Last updated timestamp.'),
+			),
+		),
+		'primary key' => array(
+			'tid',
+		),
+		'indexes' => array(
+			'updated_tid' => array('updated', 'tid'),
+		),
+	);
+
+	$schema['afo_portfolio_deleted'] = array(	
+		'description' => t('Deleted item and user records.'),
+		'fields' => array(
+			'delete_id' => array(
+				'type' => 'serial',
+				'size' => 'medium',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('The delete record id.'),
+			),
+			'type' => array(
+				'type' => 'varchar',
+				'length' => 30,
+				'not null' => TRUE,
+				'default' => '',
+				'description' => t('Type of item deleted.'),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The deleted item\'s {user}.uid.'),
+			),
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The deleted item\'s {node}.nid if applicable.'),
+			),
+			'deleter_uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The user deleting the item\'s {user}.uid.'),
+			),
+			'timestamp' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.'),
+			),
+		),
+		'primary key' => array(
+			'delete_id',
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'nid' => array('nid'),
+			'timestamp' => array('timestamp'),
+		),
+	);	
+		
+	return $schema;
+	
+}
+
+/**
+ * Add settings table
+ */
+function afo_portfolio_update_6000() {
+	$ret = array();
+	$table = array(
+		'description' => t('Artist portfolio settings'),
+		'fields' => array(
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The artist\'s {user}.uid.')
+			),
+			'view_type' => array(
+				'type' => 'int',
+				'size' => 'tiny',
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('View type setting.')
+			),
+		),
+		'primary key' => array(
+			'uid',
+		),
+	);
+	db_create_table($ret, 'afo_portfolio_settings', $table);
+	return $ret;
+}
+
+/**
+ * Add thumbnail nid field to users table.
+ */
+function afo_portfolio_update_6001() {
+	$ret = array();
+
+	// thumbnail nid
+	db_add_field(
+		$ret,
+		'users', 
+		'thumbnail_nid',
+		array(
+			'type' => 'int',
+			'unsigned' => TRUE,
+			'not null' => TRUE,
+			'default' => 0,
+			'initial' => 0,
+			'description' => 'User thumbnail nid.',
+		)
+	);
+
+	return $ret;
+}
+
+/**
+ * Add term_user totals table
+ */
+function afo_portfolio_update_6002() {
+	$ret = array();
+	$table = array(
+		'description' => t('Term user totals for taxonomy terms.'),
+		'fields' => array(
+			'tid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The term tid.')
+			),
+			'total' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Term user count total.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Last updated timestamp.'),
+			),
+		),
+		'primary key' => array(
+			'tid',
+		),
+		'indexes' => array(
+			'updated_tid' => array('updated', 'tid'),
+		),
+	);
+	db_create_table($ret, 'afo_portfolio_term_user_total', $table);
+	return $ret;
+}
+
+/**
+ * Add settings table
+ */
+function afo_portfolio_update_6003() {
+	$ret = array();
+	$table = array(
+		'description' => t('Deleted item and user records.'),
+		'fields' => array(
+			'delete_id' => array(
+				'type' => 'serial',
+				'size' => 'medium',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('The delete record id.'),
+			),
+			'type' => array(
+				'type' => 'varchar',
+				'length' => 30,
+				'not null' => TRUE,
+				'default' => '',
+				'description' => t('Type of item deleted.'),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The deleted item\'s {user}.uid.'),
+			),
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The deleted item\'s {node}.nid if applicable.'),
+			),
+			'deleter_uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The user deleting the item\'s {user}.uid.'),
+			),
+			'timestamp' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.'),
+			),
+		),
+		'primary key' => array(
+			'delete_id',
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'nid' => array('nid'),
+			'timestamp' => array('timestamp'),
+		),
+	);
+	db_create_table($ret, 'afo_portfolio_deleted', $table);
+	return $ret;
+}

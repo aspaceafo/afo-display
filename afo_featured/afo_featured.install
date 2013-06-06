@@ -1,0 +1,166 @@
+<?php
+// $Id$
+
+function afo_featured_install() {
+	drupal_install_schema('afo_featured');
+}
+
+function afo_featured_uninstall() {
+	drupal_uninstall_schema('afo_featured');
+}
+
+function afo_featured_schema() {
+	$schema['afo_featured_nodes'] = array(
+		'description' => t('Stores featured nodes.'),
+		'fields' => array(
+			'featured_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'size' =>  'normal',
+				'description' => t('The row id.')
+			),				
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The featured {node}.nid.'),
+			),
+			'feature_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The feature id.'),
+			),
+			'featured_name' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Name of feature accompanying the featured item.'),
+			),
+			'featured_note' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Note accompanying the featured item.'),
+			),
+			'admin_uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The admin user {user}.uid.'),
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.'),
+			),
+		),
+		'primary key' => array(
+			'featured_id'
+		),
+		'indexes' => array(
+			'nid' => array('nid'),
+			'feature_id' => array('feature_id'),
+			'updated' => array('updated'),
+		),
+	);
+
+	$schema['afo_featured_users'] = array(
+		'description' => t('Stores featured users.'),
+		'fields' => array(
+			'featured_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'size' =>  'normal',
+				'description' => t('The row id.')
+			),				
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The featured user {user}.uid.')
+			),
+			'feature_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The feature id.')
+			),
+			'featured_name' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Name of feature accompanying the featured item.')
+			),
+			'featured_note' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Note accompanying the featured item.')
+			),
+			'admin_uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The admin user {user}.uid.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.')
+			),
+		),
+		'primary key' => array(
+			'featured_id'
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'feature_id' => array('feature_id'),
+			'updated' => array('updated'),
+		),
+	);
+
+	$schema['afo_featured_types'] = array(
+		'description' => t('Feature types.'),
+		'fields' => array(
+			'feature_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'size' =>  'normal',
+				'description' => t('The feature id.')
+			),
+			'feature_name' => array(
+				'type' => 'varchar',
+				'length' => 200,
+				'not null' => TRUE,
+				'description' => t('The feature type name.')
+			),
+			'feature_description' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('The feature type description.')
+			),
+		),
+		'primary key' => array(
+			'feature_id',
+		),
+		'indexes' => array(
+			'feature_id' => array('feature_id'),
+		),
+	);
+	
+	return $schema;
+	
+}

@@ -1,0 +1,28 @@
+.afo-featured
+{
+}
+.afo-featured-inner
+{
+	margin: 0 0 30px 0;
+}
+
+.afo-featured .feature-label,
+.afo-featured .featured-note
+{
+	font-size: .85em;
+	line-height: 1.2em;
+	color: #999;
+}
+.afo-featured .feature-name
+{
+	font-style: italic;
+}
+.afo-featured .featured-name
+{
+	font-weight: bold;
+}
+
+.afo-featured .afo-slideshow-inner
+{
+	margin: 5px 0;
+}

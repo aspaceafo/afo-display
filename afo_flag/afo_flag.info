@@ -1,0 +1,5 @@
+; $Id$
+name = AFO Flag
+description = Allows users to flag content.
+core = 6.x
+package = AFO Custom

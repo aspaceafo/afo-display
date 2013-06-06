@@ -1,0 +1,792 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * AFO Portfolio module.
+ */
+ 
+
+/** ********************************************** DRUPAL FUNCTIONS **/
+
+/**
+ * Implementation of hook_perm().
+ */
+function afo_portfolio_perm() {
+  return array('manage own portfolio', 'edit own portfolio settings', 'own content can be liked');
+}
+
+/**
+ * Implements hook_init
+ */
+function afo_portfolio_init() {
+	
+	// IF ATTEMPTING OLD AFO PAGE, TRY TO REDIRECT
+	if(arg(0) == 'view_artist.php' || arg(0) == 'statement.php' || arg(0) == 'email_portfolio.php' || arg(0) == 'lightbox.php' || arg(0) == 'bio.php') {
+		$a_id = $_GET['aid'];
+		if(is_numeric($a_id)) $uid = db_result(db_query('SELECT uid FROM {afo_import_record_users} WHERE source_id = %d', $a_id));	
+		if(is_numeric($uid)) {
+			switch(arg(0)) {
+				case 'statement.php':
+					$dest = "user/$uid/profile";
+					break;
+				case 'bio.php':
+					$dest = "user/$uid/profile";
+					break;
+				default:
+					$dest = "user/$uid";
+					break;
+			}
+		}
+	}
+	else if(arg(0) == 'showimage.php') {
+		$image_id = $_GET['id'];
+		$a_id = $_GET['aid'];
+		if(is_numeric($image_id)) $nid = db_result(db_query('SELECT nid FROM {afo_import_record_artwork} WHERE source_id = %d', $image_id));
+		
+		if(is_numeric($nid)) $dest = "node/$nid";
+
+		else if(is_numeric($a_id)) {
+			$uid = db_result(db_query('SELECT uid FROM {afo_import_record_users} WHERE source_id = %d', $a_id));	
+			if(is_numeric($uid)) $dest = "user/$uid";
+		}		
+	}
+	else if(arg(0) == 'alpha.php' || arg(0) == 'searchresults.php' || arg(0) == 'searchresults_tag.php') {
+		$dest = 'browse';
+	}
+	else if (arg(2) == 'random_image_fade.php') {
+		$dest = 'home';
+	}
+	
+	if($dest) drupal_goto($dest);
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function afo_portfolio_menu() {
+	$items['admin/settings/afo/afo-portfolio'] = array(
+		'title' => 'AFO Portfolio Settings',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_portfolio_admin_settings'),
+		'access arguments' => array('administer site settings'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_portfolio.admin.inc',
+	);
+	
+	$items['user/portfolio/edit'] = array(
+		'title' => 'Edit Portfolio',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_portfolio_editpage'),
+		'access arguments' => array('manage own portfolio'),
+		'type' => MENU_NORMAL_ITEM,
+		'file' => 'afo_portfolio.display.inc',
+	);
+	
+	return $items;
+}
+
+/**
+ * Call artwork node form extra fields validate.
+ */
+function afo_portfolio_artwork_nodevalidate($form, $form_state) {
+	module_load_include('inc', 'afo_portfolio', 'afo_portfolio.artwork');
+	_afo_portfolio_artwork_nodevalidate($form, $form_state);
+}
+/**
+ * Call artwork node form extra fields submit.
+ */
+function afo_portfolio_artwork_nodesubmit($form, &$form_state) {
+	module_load_include('inc', 'afo_portfolio', 'afo_portfolio.artwork');
+	_afo_portfolio_artwork_nodesubmit($form, $form_state);
+}
+
+
+/**
+ * Implements hook_schema_alter
+ * Add popularity and created fields to term_node
+ */
+function afo_portfolio_schema_alter(&$schema) {
+	$schema['users']['fields']['thumbnail_nid'] = array(
+		'type' => 'int',
+		'unsigned' => TRUE,
+		'not null' => TRUE,
+		'default' => 0,
+		'description' => 'User thumbnail nid.',
+	);
+}
+
+/**
+ * Implementation of hook_action_info().
+ */
+function afo_portfolio_action_info() {
+	$info['afo_portfolio_thumbnails_save_action'] = array(
+		'type' => 'system',
+		'description' => t('Save thumbnail values in user table.'),
+		'configurable' => FALSE,
+		'hooks' => array(
+			'any' => TRUE,
+		),
+	);
+
+	$info['afo_portfolio_totals_save_action'] = array(
+		'type' => 'system',
+		'description' => t('Save term totals in totals table.'),
+		'configurable' => FALSE,
+		'hooks' => array(
+			'any' => TRUE,
+		),
+	);
+
+	return $info;
+}
+
+/**
+ * Implements hook_taxonomy
+ */
+function afo_portfolio_taxonomy($op, $type, $array = NULL) {
+
+	// delete term_totals when term deleted
+	if($op == 'delete' && $type == 'term') {
+		$delete_result = db_query('DELETE FROM {afo_portfolio_term_user_total} WHERE tid = %d', $array['tid']);
+	}
+
+}
+
+
+/** ********************************************** USER INTERACTION **/
+
+
+/**
+ * Implementation of hook_form_alter().
+ */
+ /*
+function afo_portfolio_form_alter(&$form, $form_state, $form_id) {
+	
+	if($form_id == afo_portfolio_gettypes('artwork').'_node_form' || $form_id == afo_portfolio_gettypes('folder').'_node_form') {
+
+		// current structure
+		$nid = $form['nid']['#value'];
+		$current_structure = afo_portfolio_getstructure($nid);
+		if($current_structure===null) {
+			$current_structure = new stdClass;
+			$current_structure->weight = 0;
+		}
+		
+		// user's folders
+		$folders = afo_portfolio_getfolders($form['uid']['#value']);
+		$folders[0] = '<none>';
+		
+		$form['afo_portfolio_settings'] = array(
+			'#type' => 'fieldset',
+			'#title' => t('Portfolio Settings'),
+		);
+		$form['afo_portfolio_settings']['afo_portfolio_folder'] = array(
+			'#type' => 'select',
+			'#title' => t('Folder'),
+			'#options' => $folders,
+			'#default_value' => $current_structure->folder_nid,
+		);
+		$form['afo_portfolio_settings']['afo_portfolio_order'] = array(
+			'#type' => 'weight',
+			'#title' => t('Order weight'),
+			'#delta' => 20,
+			'#default_value' => $current_structure->weight,
+		);
+
+		$form['#submit'][] = 'afo_portfolio_artworksubmit';
+
+	}
+}
+*/
+/**
+ * Process node submit.
+ */
+/*
+function afo_portfolio_artworksubmit($form, &$form_state) {
+	$nid = $form['nid']['#value'];
+	if(is_numeric($nid)) {
+		$weight = $form_state['values']['afo_portfolio_order'];
+		$folder_nid = $form_state['values']['afo_portfolio_folder'];
+		afo_portfolio_putstructure($nid, $weight, $folder_nid);
+	}
+}
+*/
+
+/** ********************************************** DISPLAY FUNCTIONS **/
+
+/**
+ * Implementation of hook_theme().
+ */
+function afo_portfolio_theme() {
+  return array(
+    'afo_portfolio_editpage' => array(
+		'arguments' => array('form' => NULL),
+		'file' => 'afo_portfolio.display.inc',
+    ),
+    'afo_portfolio_artwork_listing' => array(
+    	'arguments' => array('listing_data' => NULL),
+    	'file' => 'afo_portfolio.artwork.inc',
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_portfolio_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks['portfolio_view']['info'] = t('afo_portfolio: Portfolio View');
+			$blocks['portfolio_view']['cache'] = BLOCK_NO_CACHE;
+			
+			$blocks['portfolio_manage']['info'] = t('afo_portfolio: Manage Portfolio Options');
+			$blocks['portfolio_manage']['cache'] = BLOCK_NO_CACHE;
+			
+			return $blocks;
+			
+		case 'view':
+			switch($delta) {
+				case 'portfolio_view':
+					if(arg(0)=='user') {
+						module_load_include('inc', 'afo_portfolio', 'afo_portfolio.display');
+						return afo_portfolio_build_portfolio_block(arg(1));
+					}
+					break;
+					
+				case 'portfolio_manage':
+					$manage_menu_name = variable_get('afo_portfolio_manage_menuname', null);
+					if(!$manage_menu_name) return null;
+
+					global $user;
+					$show = false;
+
+					// if user, check if current user
+					if(arg(0) == 'user' && arg(1) == $user->uid) $show = true;
+					// if node, check if owned by current user and artwork or folder
+					elseif(arg(0) == 'node') {
+						$result = db_result(db_query('SELECT type FROM {node} WHERE nid = %d AND uid = %d', arg(1), $user->uid));
+						if($result == variable_get('afo_portfolio_folder_content_type', 'folder') || $result == variable_get('afo_portfolio_artwork_content_type', 'artwork')) $show = true;
+					}
+					// allow other paths
+					elseif(arg(0) == 'user' && arg(1) == 'portfolio') $show = true;
+					
+					// return block:
+					if($show) {
+						$block['content'] = menu_tree($manage_menu_name);
+						return $block;
+					}
+					break;
+					
+			}
+			return NULL;
+	}
+}
+
+/**
+ * Implementation of hook_user.
+ * Add portfolio to user.
+ */
+function afo_portfolio_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+		case 'view':
+			module_load_include('inc', 'afo_portfolio', 'afo_portfolio.display');
+			$portfolio = afo_portfolio_build_portfolio_block($account->uid);
+			if($portfolio) {
+				$account->content['portfolio'] = array(
+					'#type' => 'user_profile_item',
+					'#title' => null,
+					'#weight' => -10,
+					'#value' => $portfolio['content'],
+				);
+			}
+			break;
+
+		case 'delete':
+			// remove artwork structure data from db
+			if(is_numeric($account->uid)) {
+				afo_portfolio_deletesettings($account->uid);
+				afo_portfolio_recorddelete('user', $account->uid, 0);
+			}
+			break;
+	}
+}
+
+/**
+ * User thumbnail
+ */
+function afo_portfolio_thumbnail($user_data, $imagecache_preset = null, $options=array()) {
+	if(is_numeric($user_data)) {
+		$user_query = db_query('SELECT users.uid, users.name, users.thumbnail_nid, files.filepath 
+		FROM {users} users
+		LEFT JOIN {content_type_artwork} artwork ON artwork.nid = users.thumbnail_nid
+		LEFT JOIN {files} files ON files.fid = artwork.field_artwork_image_fid
+		WHERE users.uid = %d', $user_data);
+		if($result = db_fetch_array($user_query)) {
+			$user_data = $result;
+		}
+	}
+	
+	if(!is_numeric($user_data['uid'])) return null;
+	
+	if(!$imagecache_preset) $imagecache_preset = variable_get('afo_portfolio_thumbnail_default_preset', 'artwork_thumbnail');
+	
+
+	$options['uid'] = $user_data['uid'];
+	$options['user thumbnail'] = true;	
+	
+	if($user_data['thumbnail_nid'] > 0) {
+		$user_data['label'] = $user_data['name'];
+		$user_data['nid'] = $user_data['thumbnail_nid'];
+		$thumbnail = theme('afo_display_node_thumbnail', $user_data, $imagecache_preset, 'user/'.$user_data['uid'], $options);
+		return $thumbnail;
+	} 
+	else {	
+		$options['imagecache_preset'] = $imagecache_preset;
+		include_once('afo_portfolio.classes.inc');
+		$portfolio = new portfolioPortfolio(array('uid'=>$user_data['uid']));
+		return $portfolio->printThumbnail($options);
+	}
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ * Set up artwork display.
+ */
+function afo_portfolio_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+	// ARTWORK
+	if($node->type == afo_portfolio_gettypes('artwork')) {
+		module_load_include('inc', 'afo_portfolio', 'afo_portfolio.artwork');
+		afo_portfolio_artwork_modifynode($node, $op, $a3, $a4);
+	}
+	
+	if($op == 'view') {
+	
+		// remove plus1 if no permission
+		if($node->content['plus1_widget']) {
+			//if(!user_access('own content can be liked', user_load($node->uid))) {
+			unset($node->content['plus1_widget']);
+			//}
+		}
+		
+	}
+	
+	if($op == 'delete') {
+		afo_portfolio_recorddelete($node->type, $node->uid, $node->nid);
+	}
+}
+
+
+/**
+ * Implementation of hook_form_alter.
+ * Add fields to artwork node form.
+ */
+function afo_portfolio_form_alter(&$form, &$form_state, $form_id) {
+	$artwork_type = afo_portfolio_gettypes('artwork');
+
+	// artwork type node form
+	if($form_id == $artwork_type . '_node_form') {
+	
+		module_load_include('inc', 'afo_portfolio', 'afo_portfolio.artwork');
+		afo_portfolio_artwork_alternodeform($form, $form_state);
+		
+	}
+}
+
+
+/** ********************************************** HELPER FUNCTIONS **/
+
+/**
+ * Check if user is member
+ */
+function afo_portfolio_checkmember($uid) {
+	if(!is_numeric($uid)) return null;
+	
+	$result = db_result(db_query('SELECT rid FROM {users_roles} WHERE uid = %d AND rid = %d', $uid, 7));
+	if($result) return true;
+	else return false;
+}
+
+/**
+ * Returns content type set by admin.
+ */
+function afo_portfolio_gettypes($for = 'artwork') {
+	switch($for) {
+		case 'artwork':
+			return variable_get('afo_portfolio_artwork_content_type', 'artwork');
+		case 'folder':
+			return variable_get('afo_portfolio_folder_content_type', 'folder');
+	}
+}
+
+/**
+ * Determine whether user can create more artworks
+ */
+function afo_portfolio_artwork_allowed($user, $op='message') {
+	if(is_numeric($user)) $user = user_load($user);
+	if(!is_object($user)) return false;
+	
+	$allow = true;
+
+	$member_role = variable_get('afo_custommenu_roles_artist_member', 'none');
+	if(!array_key_exists($member_role, $user->roles)) {
+		$artwork_type = variable_get('afo_settings_types_artwork', null);
+		$artwork_max =  variable_get('afo_portfolio_artwork_max', 12);
+		if($artwork_type) {
+			$user_artworks = db_result(db_query("SELECT count(nid) total FROM {node} WHERE type = '%s' AND uid = %d", $artwork_type, $user->uid));
+			if($user_artworks >= $artwork_max) {
+				$allow = false;
+				$message = t('You have already created the maximum number of artworks. Upgrade to a member account to create more artworks.');
+				// assign message based on $op
+				switch($op) {
+					case 'form_error':
+						form_set_error('', $message);
+						break;
+						
+					case 'message':
+						drupal_set_message($message);
+						break;
+				}
+			}
+		}
+		else $allow = false;
+	}
+
+	return $allow;	
+}
+
+/** ********************************************** DB FUNCTIONS **/
+
+/**
+ * Return settings for uid's portfolio.
+ */
+function afo_portfolio_getsettings($uid) {
+	if(!is_numeric($uid)) return null;
+
+	$q = db_query('SELECT * FROM {afo_portfolio_settings} WHERE uid = %d', $uid);
+	if($result = db_fetch_object($q)) {
+		return $result;
+	}
+}
+/**
+ * Insert/update settings
+ */
+function afo_portfolio_putsettings($uid, $settings) {
+	if(!is_numeric($uid) || !is_object($settings)) return false;
+
+	// add uid
+	$settings->uid = $uid;
+	
+	$exists = afo_portfolio_getsettings($uid);
+	if($exists) {
+		// update existing
+		$success = drupal_write_record('afo_portfolio_settings', $settings, 'uid');
+	}
+	else {
+		// insert new
+		$success = drupal_write_record('afo_portfolio_settings', $settings);
+	}
+	
+	return $success;
+}
+/**
+ * Delete settings for uid's portfolio.
+ */
+function afo_portfolio_deletesettings($uid) {
+	if(!is_numeric($uid)) return null;
+	return db_query('DELETE FROM {afo_portfolio_settings} WHERE uid = %d', $uid);
+}
+
+/**
+ * Return structure for nid.
+ */
+function afo_portfolio_getstructure($nid) {
+	if(!is_numeric($nid)) return null;
+	
+	$q = db_query('SELECT * FROM {afo_portfolio_structure} ps WHERE ps.nid = %d', $nid);
+	if($result = db_fetch_object($q)) {
+		return $result;
+	}
+}
+/**
+ * Insert/update structure for nid.
+ */
+function afo_portfolio_putstructure($nid, $weight=0, $folder_nid=0, $op='check') {
+	if(!is_numeric($nid)) return null;
+
+	// check if folder_nid is indeed a folder
+	if(is_numeric($folder_nid) && $folder_nid > 0) {
+		$check_type = db_result(db_query('SELECT type FROM {node} WHERE nid = %d', $folder_nid));
+		if($check_type != afo_portfolio_gettypes('folder')) {
+			$folder_nid = 0;
+			drupal_set_message(t('Artworks can only be put inside folders.'), 'error');
+		}
+		else {
+			// check if node is artwork
+			$check_type = db_result(db_query('SELECT type FROM {node} WHERE nid = %d', $nid));
+			if($check_type != afo_portfolio_gettypes('artwork')) {
+				$folder_nid = 0;
+				drupal_set_message(t('Folders cannot be put inside other folders.'), 'error');
+			}
+		}
+	}
+
+	$record = new stdClass;
+	$record->nid = $nid;
+	$record->weight = $weight;
+	$record->folder_nid = $folder_nid;
+
+	if($op=='check') $existing = afo_portfolio_getstructure($nid);
+	elseif($op=='update') $existing = true;
+	elseif($op=='new') $existing = false;
+	
+	if($existing) {
+		if($weight <> $existing->weight || $folder <> $existing->folder_nid) {
+			drupal_write_record('afo_portfolio_structure', $record, 'nid');
+		}
+	}
+	else {
+		drupal_write_record('afo_portfolio_structure', $record);
+	}
+	return $record;
+}
+/**
+ * Delete structure entry from db
+ */
+function afo_portfolio_deletestructure($nid) {
+	if(!is_numeric($nid)) return false;
+	return db_query('DELETE FROM {afo_portfolio_structure} WHERE nid = %d', $nid);
+}
+/**
+ * Delete details entry from db
+ */
+function afo_portfolio_deletedetails($nid) {
+	if(!is_numeric($nid)) return false;
+	return db_query('DELETE FROM {afo_portfolio_artwork_data} WHERE nid = %d', $nid);
+}
+
+/**
+ * Return user folders.
+ */
+function afo_portfolio_getfolders($uid=null) {
+	$folders = array();
+	if(!$uid) {
+		global $user;
+		$uid = $user->uid;
+	}
+	if(is_numeric($uid)) {
+		$q = db_query("SELECT nid, title FROM {node} n WHERE n.uid = %d AND n.type = '%s'", $uid, afo_portfolio_gettypes('folder'));
+		while($row = db_fetch_array($q)) {
+			$folders[$row['nid']] = $row['title'];
+		}
+	}
+	return $folders;
+}
+
+/**
+ * Set user thumbnail nid
+ */
+function afo_portfolio_thumbnail_update($uid) {
+	if(!is_numeric($uid)) return null;
+	
+	include_once('afo_portfolio.classes.inc');
+	$portfolio = new portfolioPortfolio(array('uid'=>$uid));
+	$thumbnail_nid = $portfolio->printThumbnail(array('return'=>'nid'));		
+	
+	if(!is_numeric($thumbnail_nid)) $thumbnail_nid = 0;
+	
+	$result = db_query('UPDATE {users} SET thumbnail_nid = %d WHERE uid = %d', $thumbnail_nid, $uid);
+}
+
+/**
+ * Action: save batch of thumbnails in user table
+ */
+function afo_portfolio_thumbnails_save_action() {
+	$last_updated = variable_get('afo_portfolio_thumbnail_last_updated', 0);
+	$per_action = 250;
+	
+	$query = db_query_range('SELECT users.uid FROM {users} users WHERE users.uid > %d ORDER BY users.uid ASC', $last_updated, 0, $per_action);
+	
+	while($row = db_fetch_array($query)) {
+		if(is_numeric($row['uid'])) {
+			afo_portfolio_thumbnail_update($row['uid']);
+		}
+	}
+
+	drupal_set_message("Updated thumbnails for $per_action users starting with $last_updated.");
+
+	$total_users = db_result(db_query('SELECT COUNT(*) FROM {users}'));
+	$last_updated += $per_action;
+	if($last_updated >= $total_users) {
+		$last_updated = 0;
+	}
+	variable_set('afo_portfolio_thumbnail_last_updated', $last_updated);
+}
+
+/**
+ * Update term total
+ */
+function afo_portfolio_term_total_update($tid, $type = 'user') {
+	if(!is_numeric($tid)) return null;
+
+	$total = db_result(db_query('SELECT COUNT(*) FROM {term_user} WHERE tid = %d', $tid));
+
+	// update total
+	if(is_numeric($total)) {
+		
+		$current_val = db_result(db_query('SELECT total FROM {afo_portfolio_term_user_total} WHERE tid = %d', $tid));
+		
+		$record = new stdClass;
+		$record->tid = $tid;
+		$record->total = $total;
+		$record->updated = time();
+		
+		if($current_val === false) {
+			// add new record
+			drupal_write_record('afo_portfolio_term_user_total', $record);		
+		}
+		else {
+			if($current_val != $total) {
+				// update if different
+				drupal_write_record('afo_portfolio_term_user_total', $record, array('tid'));
+			}
+		}
+		
+	}
+}
+
+/**
+ * Action: save batch of totals in term totals tabel
+ */
+function afo_portfolio_totals_save_action() {
+	$update_per_action = 100;
+	$add_per_action = 250;
+
+	$vids = array(
+		variable_get('afo_custommenu_vocab_city', 0),
+		variable_get('afo_custommenu_vocab_region', 0),
+		variable_get('afo_custommenu_vocab_tags', 0),
+		variable_get('afo_custommenu_vocab_medium', 0),
+	);
+	
+	// get tids to update:
+	$query = db_query_range('SELECT totals.tid 
+	FROM {afo_portfolio_term_user_total} totals
+	ORDER BY totals.updated ASC', 0, $update_per_action);
+	while($row = db_fetch_array($query)) {
+		if(is_numeric($row['tid'])) {
+			$tids[] = $row['tid'];
+		}
+	}
+
+	// get tids to add:
+	$query = db_query_range('SELECT term_data.tid 
+	FROM {term_data} term_data
+	LEFT JOIN {afo_portfolio_term_user_total} totals ON totals.tid = term_data.tid
+	WHERE totals.total IS NULL AND term_data.vid IN (%s)
+	', implode(',', $vids), 0, $add_per_action);
+	while($row = db_fetch_array($query)) {
+		if(is_numeric($row['tid'])) {
+			$tids[] = $row['tid'];
+		}
+	}
+	
+	if(is_array($tids)) {
+		foreach($tids as $tid) {
+			afo_portfolio_term_total_update($tid);
+		}
+		drupal_set_message('Updated batch of term totals.');
+	}
+
+}
+
+/**
+ * Save deleted item record
+ */
+function afo_portfolio_recorddelete($type, $uid, $nid = 0) {
+	
+	global $user;
+	
+	$record = new stdclass;
+	$record->type = check_plain($type);
+	$record->uid = is_numeric($uid) ? $uid : 0;
+	$record->nid = is_numeric($nid) ? $nid : 0;
+	$record->deleter_uid = $user->uid;
+	$record->timestamp = time();
+	
+	drupal_write_record('afo_portfolio_deleted', $record);
+
+}
+
+/** ********************************************** VIEWS DATA **/
+
+/**
+ * Implementation of hook_views_data()
+ */
+function afo_portfolio_views_data() {
+
+	$data['afo_portfolio_structure']['table']['group']  = t('AFO Portfolio Structure');
+	
+	$data['afo_portfolio_structure']['table']['join'] = array(
+		'node' => array(
+			'left_field' => 'nid',
+			'field' => 'nid',
+		),
+	);
+
+	// item nid: portfolio item
+	$data['afo_portfolio_structure']['nid'] = array(
+		'title' => t('Portfolio Item Node Id'),
+		'help' => t('Nid of the item.'), 
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+	// folder nid: nid of the enclosing folder
+	$data['afo_portfolio_structure']['folder_nid'] = array(
+		'title' => t('Item Folder Node Id'),
+		'help' => t('Nid of the enclosing folder.'),
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+	
+	// weight: defines item order within folder
+	$data['afo_portfolio_structure']['weight'] = array(
+		'title' => t('Portfolio Item Weight'),
+		'help' => t('Ordering weight of the item within folder.'),
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+	);
+	
+	return $data;
+	
+}

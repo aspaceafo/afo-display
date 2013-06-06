@@ -1,0 +1,20 @@
+#afo_cv_edit_form
+{
+	background-color: #ffffff;
+	padding: 20px;
+}
+#afo_cv_edit_form-inner
+{
+}
+
+#afo_cv_edit_form fieldset
+{
+	width: 400px;
+}
+
+.cv-index .column
+{
+	float: left;
+	width: 30%;
+	padding-right: 20px;
+}

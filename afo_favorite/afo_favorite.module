@@ -1,0 +1,541 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Allows users to favorite nodes and users.
+ */
+ 
+/**
+ * Add new favorite.
+ */
+function afo_favorite_add($uid, $val, $op='node') {
+
+	if(is_numeric($uid) && $uid > 0 && is_numeric($val)) {
+		$check_existing = afo_favorite_get($uid, $op, $val);
+
+		if(!$check_existing) {
+
+			$record = new stdClass();
+			if($op=='user') {
+				$table_name = 'afo_favorite_users';
+				$record->fav_uid = $val;
+				$success_message = 'User added to favorites.';
+			}
+			else {
+				$table_name = 'afo_favorite_nodes';
+				$record->nid = $val;
+				$success_message = 'Item added to favorites.';
+			}
+			$record->uid = $uid;
+			$record->updated = time();
+			
+			$success = drupal_write_record($table_name, $record);
+			if($success) drupal_set_message($success_message);
+			
+		}
+	}
+	else if ($uid === 0) {
+		// redirect anon users to register page
+		drupal_goto('sign-up');
+	}
+	
+}
+
+/**
+ * Return user's favorites, all or matching criteria.
+ */
+function afo_favorite_get($uid, $op='node', $val=0) {
+
+	if(is_numeric($uid)) {
+		if($op=='user') {
+			if($val > 0) $query = db_query('SELECT * FROM {afo_favorite_users} WHERE uid=%d AND fav_uid=%d', $uid, $val);
+			else $query = db_query('SELECT * FROM {afo_favorite_users} WHERE uid=%d ORDER BY updated DESC', $uid);
+		}
+		else {
+			if($val > 0) $query = db_query('SELECT * FROM {afo_favorite_nodes} WHERE uid=%d AND nid=%d', $uid, $val);
+			else $query = db_query('SELECT * FROM {afo_favorite_nodes} WHERE uid=%d ORDER BY updated DESC', $uid);
+		}
+		
+		while($row = db_fetch_array($query)) {
+			$result[] = $row;
+		}
+		
+		return $result;
+	}
+	
+	return FALSE;
+}
+/**
+ * Return favorite uids based on nodes
+ */
+function afo_favorite_get_uids($uid) {
+	if(!is_numeric($uid)) return null;
+	
+	$query = db_query('SELECT n.uid AS fav_uid 
+	FROM {afo_favorite_nodes} f 
+	LEFT JOIN {node} n ON n.nid = f.nid 
+	WHERE f.uid=%d ORDER BY updated DESC'
+	, $uid);
+	
+	$fav_uids = array();
+	while($row = db_fetch_array($query)) {
+		$fav_uid = $row['fav_uid'];
+		if(!in_array($fav_uid, $fav_uids)) $fav_uids[] = $fav_uid;
+	}
+	return $fav_uids;
+}
+
+/**
+ * Delete favorite.
+ */
+function afo_favorite_delete($val, $op, $uid=null) {
+	if(!is_numeric($val)) return false;
+	
+	switch($op) {
+		case 'node':
+			$table = 'afo_favorite_nodes';
+			$valfield = 'nid';			
+			break;
+			
+		case 'user':
+			$table = 'afo_favorite_users';
+			$valfield = 'fav_uid';		
+		 	break;
+	}
+
+	if(!$table || !$valfield) return false;
+	
+	if($uid) $result = db_query("DELETE FROM {$table} WHERE $valfield = %d AND uid = %d", $val, $uid);
+	else	 $result = db_query("DELETE FROM {$table} WHERE $valfield = %d", $val);
+	
+	return $result;
+}
+
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_favorite_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = t('Add to Favorites');
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+			return $blocks;
+			
+		case 'view':
+			// make sure there are types enables to be added
+			$itemtypes = afo_favorite_gettypes('node');
+
+			// make sure this is a node or user
+			if(arg(0)=='user' || (arg(0)=='node' && count($itemtypes) > 0))  {
+
+				global $user;
+				
+				if(arg(0)=='node') {
+					$node = node_load(arg(1));
+					$nid = $node->nid;
+					$fav_uid = $node->uid;
+				}
+				elseif(arg(0)=='user') { 
+					$nid = 0;
+					$fav_uid = arg(1);
+				}
+				else return NULL;
+
+				// check if this node is in item types 
+				if(arg(0)=='node' && !$itemtypes[$node->type]) return NULL;
+				// check if user is node author
+				if(arg(0)=='node' && $node->uid==$user->uid) return NULL;
+				// check if user is logged-in user
+				if(arg(0)=='user' && arg(1)==$user->uid) return NULL;
+				
+				// show block
+				$block['subject'] = t('Add to Favorites');
+				$block['content'] = drupal_get_form('afo_favorite_addform', $nid, $fav_uid);
+				return $block;
+				
+			}
+
+			return NULL;
+	}
+}
+
+/**
+ * Output add favorite link or button.
+ */
+function afo_favorite_favbutton($op, $val, $text=null) {
+
+	if(is_numeric($val)) {
+	
+		global $user;
+	
+		// check if already a favorite:
+		if(!afo_favorite_get($user->uid, $op, $val)) {
+	
+			// if no text, get + image
+			if(!$text) {
+				global $base_path; 
+				$images_folder = $base_path.drupal_get_path('module', 'afo_display').'/images';
+				$text = "<img src='$images_folder/plus.png' title='Add to favorites' alt='Favorite' />";
+			}
+			// use text
+			else $text = t($text);
+		
+			// add url
+			$url = "favorites/add/$op/$val";
+		
+			return l($text, $url, array('attributes'=>array('class'=>'afo-favorite-add'), 'html'=>true));
+			
+		}
+
+	}
+	
+	return null;
+}
+
+
+/**
+ * Form builder: add to favorites.
+ */
+function afo_favorite_addform(&$form_state, $nid, $fav_uid) {
+	global $user;
+	
+	$form['uid'] = array(
+		'#type' => 'value',
+		'#value' => $user->uid,
+	);
+
+	if($nid > 0) {
+		$form['nid'] = array(
+			'#type' => 'value',
+			'#value' => $nid,
+		);
+	
+		$form['submit-node'] = array(
+			'#type' => 'submit',
+			'#value' => 'Favorite Artwork',
+		);
+	}
+	
+	if(is_numeric($fav_uid)) {
+		$form['fav_uid'] = array(
+			'#type' => 'value',
+			'#value' => $fav_uid,
+		);
+		
+		$form['submit-user'] = array(
+			'#type' => 'submit',
+			'#value' => 'Follow Artist',
+		);
+	}
+						
+	return $form;
+}
+/**
+ * Form builder: validate ADD form.
+ */
+function afo_favorite_addform_validate($form, $form_state) {
+	global $user;
+	
+	if($form_state['values']['uid'] != $user->uid) {
+		form_set_error('uid', t('Error adding favorite: UID error.'));
+	}
+}
+/**
+ * Form builder: submit ADD form.
+ */
+function afo_favorite_addform_submit($form, &$form_state) {
+	$uid = $form_state['values']['uid'];
+	
+	if($form_state['clicked_button']['#id'] == 'edit-submit-node') {
+		$op = 'node';
+		$val = $form_state['values']['nid'];
+	}
+	elseif($form_state['clicked_button']['#id'] == 'edit-submit-user') {
+		$op = 'user';
+		$val = $form_state['values']['fav_uid'];
+	}
+
+	if(is_numeric($uid) && is_numeric($val)) {
+		afo_favorite_add($uid, $val, $op);
+	}
+}
+
+
+/**
+ * Get admin settings for content types.
+ */
+function afo_favorite_gettypes($for = 'node') {
+	switch($for) {
+		case 'node':
+			return variable_get('afo_favorite_node_types', NULL);
+	}
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function afo_favorite_perm() {
+	return array('save favorites');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function afo_favorite_menu() {
+	$items['admin/settings/afo/afo-favorite'] = array(
+		'title' => 'AFO Favorite Settings',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_favorite_admin_settings'),
+		'access arguments' => array('administer site settings'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_favorite.admin.inc',
+	);
+	
+	$items['favorites/add/%/%'] = array(
+		'page callback' => 'afo_favorite_process_add',
+		'page arguments' => array(2, 3),
+		'access callback' => TRUE,
+		'type' => MENU_CALLBACK,
+	);
+
+	$items['favorites/remove/%/%'] = array(
+		'page callback' => 'afo_favorite_process_remove',
+		'page arguments' => array(2, 3),
+		'access callback' => TRUE,
+		'type' => MENU_CALLBACK,
+	);
+	
+	$items['favorites'] = array(
+		'title' => 'Favorites',
+		'page callback' => 'afo_favorite_favorites_page',
+		'access arguments' => array('access content'),
+		'file' => 'afo_favorite.favorites_page.inc',
+		'type' => MENU_NORMAL_ITEM,
+	);
+	
+	return $items;
+}
+
+/**
+ * Implementation of hook_user.
+ */
+function afo_favorite_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+		case 'delete':
+			// remove favorites
+			if(is_numeric($account->uid)) {
+				// remove user's fav nodes
+				db_query('DELETE FROM {afo_favorite_nodes} WHERE uid = %d', $account->uid);
+				// remove user's fav users
+				db_query('DELETE FROM {afo_favorite_users} WHERE uid = %d', $account->uid);
+				// remove fav's saved of user
+				db_query('DELETE FROM {afo_favorite_users} WHERE fav_uid = %d', $account->uid);
+			}
+			break;
+	}
+}
+
+/**
+ * Process add call from menu system.
+ */
+function afo_favorite_process_add($op, $val) {
+	if(is_numeric($val) && ($op == 'user' || $op == 'node')) {
+		global $user;
+		afo_favorite_add($user->uid, $val, $op);
+	}
+	
+	drupal_goto(referer_uri());
+}
+
+/**
+ * Process remove call from menu system.
+ */
+function afo_favorite_process_remove($op, $val) {
+	// translate op
+	if($op == 'artwork') $op = 'node';
+	elseif($op == 'artists') $op = 'user';
+	
+	if(is_numeric($val) && ($op == 'user' || $op == 'node')) {
+		global $user;
+		afo_favorite_delete($val, $op, $user->uid);
+	}
+
+	if(!empty($_POST['js'])) {
+		// jQuery call, send back JSON	
+		drupal_json(1);
+		exit();
+	}
+	
+	drupal_goto(referer_uri());
+}
+
+
+/**
+ * Implementation of hook_nodeapi.
+ */
+function afo_favorite_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+	$favnode_types = afo_favorite_gettypes('node');
+	if(in_array($node->type, $favnode_types)) {
+		// node is potential favorite type
+		switch($op) {
+			case 'delete':
+				// remove favorites from db
+				afo_favorite_delete($node->nid, 'node');
+				break;
+		}
+	}
+}
+
+/**
+ * Access control for viewing user's favorites
+ */
+function afo_favorite_access_favs($uid) {
+	if(!is_numeric($uid)) return null;
+
+	// TODO: select field on admin page
+	$field_id = 4; // profile field id value
+	
+	$favoritesPublic = db_result(db_query('SELECT value FROM {profile_values} WHERE uid = %d AND fid = %d', $uid, $field_id));
+	
+	if ($favoritesPublic == 1) return true;
+	
+	return false;
+}
+
+/**
+ * Implementation of hook_views_data()
+ */
+function afo_favorite_views_data() {
+
+	/* ************************************* Favorite nodes table */
+
+	$data['afo_favorite_nodes']['table']['group']  = t('AFO Favorite Nodes');
+	
+	$data['afo_favorite_nodes']['table']['join'] = array(
+		'node' => array(
+			'left_field' => 'nid',
+			'field' => 'nid',
+		),
+	);
+
+	// {user}.uid
+	$data['afo_favorite_nodes']['uid'] = array(
+		'title' => t('Owner User uid'),
+		'help' => t('Uid of the favorite\'s owner.'), 
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+	// {node}.nid
+	$data['afo_favorite_nodes']['nid'] = array(
+		'title' => t('Favorite node nid'),
+		'help' => t('Nid of the favorited node.'), 
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+	
+	// timestamp
+	$data['afo_favorite_nodes']['updated'] = array(
+		'title' => t('Favorite Timestamp'),
+		'help' => t('Timestamp when favorite was added.'),
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+	);
+	
+
+	/* ************************************* Favorite users table */
+
+	$data['afo_favorite_users']['table']['group']  = t('AFO Favorite Users');
+	
+	$data['afo_favorite_users']['table']['join'] = array(
+		'users' => array(
+			'left_field' => 'uid',
+			'field' => 'fav_uid',
+		),
+	);
+
+	// {user}.uid
+	$data['afo_favorite_users']['uid'] = array(
+		'title' => t('Owner User uid'),
+		'help' => t('Uid of the favorite\'s owner.'), 
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+	// {node}.nid
+	$data['afo_favorite_users']['fav_uid'] = array(
+		'title' => t('Favorite User uid'),
+		'help' => t('Uid of the favorited user.'), 
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+	
+	// timestamp
+	$data['afo_favorite_users']['updated'] = array(
+		'title' => t('Favorite Timestamp'),
+		'help' => t('Timestamp when favorite was added.'),
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+	);
+	
+	return $data;
+	
+}

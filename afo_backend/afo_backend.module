@@ -1,0 +1,449 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Modified AFO back end forms and functions.
+ */
+ 
+/**
+ * Implementation of hook_menu().
+ */
+function afo_backend_menu() {
+	$items['admin/settings/afo/backend'] = array(
+		'title' => 'AFO Back End Settings',
+		'description' => 'Admin settings for AFO Back End module',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_backend_admin_settings'),
+		'file' => 'afo_backend.admin.inc',
+		'access arguments' => array('administer content'),
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	$items['editor/merge-terms'] = array(
+		'title' => 'Merge Terms',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_backend_editor_merge_terms'),
+		'access arguments' => array('merge terms'),
+		'file' => 'afo_backend.merge_terms.inc',
+		'type' => MENU_CALLBACK,
+	);
+
+	$items['user/confirm-email'] = array(
+		'title' => 'Confirm Your Email Address',
+		'page callback' => 'afo_backend_confirm_email_page',
+		'file' => 'afo_backend.checklist.inc',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+	);
+	
+	$items['sign-in'] = array(
+		'title' => 'Sign In or Register',
+		'description' => 'Log into your account or learn how to create one',
+		'page callback' => 'afo_backend_login_page',
+		'access callback' => 'afo_backend_check_anonymous',
+		'access arguments' => array('access content'),
+		'type' => MENU_NORMAL_ITEM,
+	);
+	
+	return $items;
+}
+
+/**
+ * Implementation of hook_perm.
+ */
+function afo_backend_perm() {
+	return array('merge terms');
+}
+
+/**
+ * Implementation of hook_theme
+ */
+function afo_backend_theme() {
+	return array(
+		'afo_backend_hierarchy' => array(
+			'arguments' => array(
+				'element' => null,
+			),
+			'file' => 'afo_backend.hierarchy.inc',
+		),
+		'afo_backend_checklist' => array(
+			'arguments' => array(
+				'items' => null,
+				'options' => null,
+			),
+			'file' => 'afo_backend.checklist.inc',
+		),
+		'afo_backend_control_panel' => array(
+			'arguments' => array(
+				'cp' => null,
+				'options' => null,
+			),
+			'file' => 'afo_backend.control_panel.inc',
+		),
+	);
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_backend_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = t('afo_backend: Artist Register Checklist');
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+			
+			return $blocks;
+			
+		case 'view':
+			switch($delta) {
+
+				// Artist Register checklist block
+				case 0:
+					module_load_include('inc', 'afo_backend', 'afo_backend.checklist');
+					return afo_backend_checklist();
+					
+			}
+			break;
+	}
+}
+
+/**
+ * Implements hook_user
+ */
+function afo_backend_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+	
+		case 'login':
+			if(is_array($edit) && count($edit) > 0) {
+				drupal_goto('control-panel');
+			}
+			break;
+			
+	}
+}
+
+/**
+ * Query builder function
+ */
+function afo_backend_buildquery($args) {
+	module_load_include('inc', 'afo_backend', 'afo_backend.query');
+	return _afo_backend_buildquery($args);
+}
+
+/**
+ * Alter search box form.
+ */
+function afo_backend_form_alter(&$form, $form_state, $form_id) {
+
+	/********************************** make checkboxes 2 column **/
+	afo_backend_add_multicolumn($form);
+
+	/********************************** add term limit validation if necessary **/
+	$tax_inputs = afo_backend_get_taxonomy_inputs($form_id);
+	
+	if($tax_inputs['tax_element']) {
+
+		// add limit validation to terms
+		$limit_vids = array(
+			variable_get('afo_custommenu_vocab_medium', null) => variable_get('afo_custommenu_limit_terms_medium', null),
+			variable_get('afo_custommenu_vocab_tags', null) => variable_get('afo_custommenu_limit_terms_tags', null),
+		);
+		if(is_array($limit_vids)) {
+			foreach($limit_vids as $vid => $vid_max) {
+				if(is_array($form[$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$vid])) {
+
+					if($form['type']['#value'] == 'open_call') {
+						// do not limit if open call; instead alter instructions
+						$form[$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$vid]['#description'] = t('Select at least one term.');
+					}
+					else {
+						// do limit
+						$form[$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$vid]['#element_validate'][] = 'afo_backend_limit_terms';
+						$form[$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$vid]['#select_max'] = $vid_max;
+					}
+				}
+			}
+		} // end if is_array($limit_vids)
+		
+		/******************* modify region selection widget **/
+		$region_vid = 2;
+		if(isset($form[$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$region_vid])) {
+			$region_element = &$form[$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$region_vid];
+			$region_element['#required'] = false;
+			$region_element['#theme'] = 'afo_backend_hierarchy';
+			$region_element['#element_validate'] = array('afo_backend_hierarchyvalidate');
+			$form['#submit'][] = 'afo_backend_hierarchysubmit';
+		}
+
+		/********************************** modify city term input **/
+		$city_vid = variable_get('afo_profile_city_vid', null);
+		if($city_vid && is_array($form[$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$city_vid])) {
+			$elem = &$form[$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$city_vid];
+			$elem['#type'] = 'textfield';
+			$elem['#default_value'] = is_numeric($elem['#default_value'][0]) ? taxonomy_get_term($elem['#default_value'][0])->name : '';
+			$elem['#autocomplete_path'] = 'taxonomy/autocomplete/'.$city_vid;
+			$elem['#maxlength'] = 1024;
+			unset($elem['#options']);
+			unset($elem['#theme']);
+			$elem['#element_validate'][] = 'afo_backend_city_validate';
+		}
+			
+	}
+	
+	/********************************** modify user login form **/
+	if($form_id == 'user_login' || $form_id == 'user_login_block') {
+		foreach(element_children($form) as $k) {
+			$form[$k]['#display'] = 'tiny';
+			$form[$k]['#classes'][] = 'clear';
+			$form[$k]['#classes'][] = 'width-auto';
+		}
+		
+		//$extra_links[] = l(t('Not a member? Click here to register.'), 'sign-up');
+		$extra_links[] = l(t('Forgot your password?'), 'user/password', array('attributes'=>array('class'=>'secondaryText')));		
+		$form['sign-up'] = array(
+			'#prefix' => '<div>',
+			'#value' => theme('item_list', $extra_links),
+			'#suffix' => '</div>',
+			'#weight' => 10,
+		);
+	}
+	
+	/********************************** modify search block form **/
+	if($form_id == 'search_block_form' && !$form_state['submitted']) {
+		$form['module'] = array(
+			'#type' => 'value',
+			'#value' => 'user',
+		);
+		$form['search_block_form']['#title'] = 'Search Artists';
+		$form['submit']['#value'] = 'Go';
+	}
+	
+}
+
+/**
+ * Check if user is anonymous (true) or not
+ */
+function afo_backend_check_anonymous() {
+	global $user;
+	if($user->uid == 0 || $user->uid == 1) return 1;
+	else return 0;
+}
+
+/**
+ * Custom login page
+ */
+function afo_backend_login_page() {
+
+	/******* left column *******/
+	$content['col-left'] = array(
+		'#type' => 'afo_column',
+		'#position' => 'left',
+		'#weight' => -1,
+	);
+	$content['col-left']['login-form'] = array(
+		'#type' => 'afo_contentbox',
+		'#title' => t('User Login'),
+		'#value' => drupal_get_form('user_login'),
+	);
+	
+	/******* right column *******/
+	$content['col-right'] = array(
+		'#type' => 'afo_column',
+		'#position' => 'right',
+		'#weight' => 1,
+	);
+	$content['col-right']['sign-up-info'] = array(
+		'#type' => 'afo_contentbox',
+		'#title' => t('Not a member?'),
+		'#value' => t('Creating a user account is simple and free.') . '<br />' . l(t('Click here to register'), 'sign-up', array('attributes'=>array('class'=>'buttonLink'))),
+	);
+	
+	return drupal_render($content);
+}
+
+/**
+ * hierarchy select call validate function
+ */
+function afo_backend_hierarchyvalidate(&$element, &$form_state) {
+	module_load_include('inc', 'afo_backend', 'afo_backend.hierarchy');
+	_afo_backend_hierarchyvalidate($element, $form_state);
+}
+/**
+ * hierarchy select call submit function
+ */
+function afo_backend_hierarchysubmit($form, &$form_state) {
+	module_load_include('inc', 'afo_backend', 'afo_backend.hierarchy');
+	_afo_backend_hierarchysubmit($form, $form_state);
+}
+
+/**
+ * Call submit for Editor merge terms page
+ */
+function afo_backend_editor_merge_terms_submit($form, $form_state) {
+	module_load_include('inc', 'afo_backend', 'afo_backend.merge_terms');
+	_afo_backend_editor_merge_terms_submit($form, $form_state);
+}
+
+/**
+ * city term input custom submit
+ */
+function afo_backend_city_validate($element, &$form_state) {
+	
+	$vid = variable_get('afo_profile_city_vid', null);
+	$tax_inputs = afo_backend_get_taxonomy_inputs($form_state['values']['form_id']);
+	
+	if($vid && $tax_inputs['tax_element']) {
+	
+		if(isset($form_state['values'][$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$vid])) {
+			$term_value =  &$form_state['values'][$tax_inputs['tax_element']][$tax_inputs['vocab_prefix'].$vid];
+		} else {
+			$term_value = &$form_state['values'][$tax_inputs['vocab_prefix'].$vid];
+		}
+		
+		if($term_value && !is_numeric($term_value)) {
+		
+			$term_value = str_replace('"', '', $term_value);
+			$term_value = trim($term_value);
+
+			/** this code taken from taxonomy_node_save() **/
+			// try to find term tid
+			$possibilities = taxonomy_get_term_by_name($term_value);
+			$term_value_tid = NULL; // tid match, if any.
+			foreach ($possibilities as $possibility) {
+			  if ($possibility->vid == $vid) {
+				$term_value_tid = $possibility->tid;
+			  }
+			}
+	
+			/** this code taken from taxonomy_node_save() **/
+			// create term if not existing
+			if (!$term_value_tid) {
+			  $edit = array('vid' => $vid, 'name' => $term_value);
+			  $status = taxonomy_save_term($edit);
+			  $term_value_tid = $edit['tid'];
+			}
+
+			// replace string with tid for submit
+			if(is_numeric($term_value_tid)) {
+				$term_value = $term_value_tid;
+			}
+			
+		}
+	}
+	
+}
+
+/**
+ * Add multicolumn option to form element and children if checkboxes or radios
+ * Recursive function
+ */
+function afo_backend_add_multicolumn(&$element) {
+	if($element['#type'] == 'checkboxes' || $element['#type'] == 'radios') {
+		$element['#multicolumn'] = array('width' => 2);
+	}
+	
+	$children_keys = element_children($element);
+	if(is_array($children_keys)) {
+		foreach($children_keys as $k) {
+			afo_backend_add_multicolumn($element[$k]);
+		}
+	}
+}
+
+/**
+ * Disable all form elements
+ * Recursive function
+ */
+function afo_backend_disableform(&$element) {
+	$element['#disabled'] = true;
+	
+	$children_keys = element_children($element);
+	if(is_array($children_keys)) {
+		foreach($children_keys as $k) {
+			afo_backend_disableform($element[$k]);
+		}
+	}
+}
+
+/**
+ * Validate for term limits
+ */
+function afo_backend_limit_terms($element, &$form_state) {
+	if(is_numeric($element['#select_max']) && count($element['#value']) > $element['#select_max']) {
+		form_set_error($element['#title'], t('You can only select up to %max terms for %vocab.', array('%max' => $element['#select_max'], '%vocab'=>$element['#title']))); 
+	}
+}
+
+/**
+ * Determine form's taxonomy arrays based on form id
+ */
+function afo_backend_get_taxonomy_inputs($form_id) {
+	if(substr($form_id, -10) == '_node_form') {
+		$tax_element = 'taxonomy';
+		$vocab_prefix = null;
+	}
+	elseif($form_id == 'user_profile_form' || $form_id == 'user_register') {
+		$tax_element = 'user_terms';
+		$vocab_prefix = 'user_terms_';
+	}
+	
+	return array('tax_element'=>$tax_element, 'vocab_prefix'=>$vocab_prefix);
+}
+
+/**
+ * Convert terms tree to select options
+ */
+function afo_backend_tree_to_options($tree) {
+	$options[''] = t('--all--');
+	foreach($tree as $obj) {
+		$options[$obj->tid] = $obj->name;
+	}
+	return $options;
+}
+
+/**
+ * Custom pager query without COUNT
+ */
+function afo_backend_pager_query($sql, $per_page = 10, $pager_num = 0, $count_sql, $args = null, $op = 'range') {	
+	if(!$sql) return null;
+	
+	$pager_range = afo_backend_pager_calculate($per_page, $pager_num);
+
+	switch($op) {
+		case 'normal':
+			$query = db_query($sql, $args);
+			break;
+
+		default:
+			$query = db_query_range($sql, $args, $pager_range['start'], $per_page);
+			break;
+	}
+	
+	$args = arg();
+	$pager_path = implode('/', $args); 
+	$next_page_query = $pager_range['name'] . '=' . ($pager_range['current'] + 1);
+	
+	if($pager_range['start'] === 0) $pager_range['start'] = 1;
+	$pager .= t('Showing %start - %end<br />', array('%start'=>$pager_range['start'], '%end'=>$pager_range['end']));
+	if($pager_range['current'] > 0) {
+		$prev_page_query = $pager_range['name'] . '=' . ($pager_range['current'] - 1);
+		$pager .= l(t('Previous'), $pager_path, array('query' => $prev_page_query, 'attributes' => array('class' => 'buttonLink')));
+	}
+	$pager .= l(t('Next'), $pager_path, array('query' => $next_page_query, 'attributes' => array('class' => 'buttonLink')));
+
+	return array('query' => $query, 'pager' => $pager);
+}
+
+/**
+ * Determine pager start and end
+ */
+function afo_backend_pager_calculate($per_page, $pager_num = 0) {
+	$pager_name = $pager_num > 0 ? 'page' . $pager_num : 'page';
+	$current_page = isset($_GET[$pager_name]) ? $_GET[$pager_name] : 0;
+	$start = $current_page * $per_page;
+	$end = $start + $per_page;
+	return array('start'=>$start, 'end'=>$end, 'name'=>$pager_name, 'current'=>$current_page);
+}

@@ -1,0 +1,120 @@
+<?php
+// $Id$
+
+function afo_profile_install() {
+	drupal_install_schema('afo_profile');
+}
+
+function afo_profile_uninstall() {
+	drupal_uninstall_schema('afo_profile');
+}
+
+function afo_profile_schema() {
+	$schema['afo_profile_data'] = array(
+		'description' => t('Custom Profile Data'),
+		'fields' => array(
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The {user}.uid of the user'),
+			),
+			'contact_setting' => array(
+				'type' => 'int',
+				'size' => 'small',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The user\'s contact setting selection.'),
+			),
+			'analytics_id' => array(
+				'type' => 'char',
+				'length' => 20,
+				'not null' => TRUE,
+				'default' => '',
+				'description' => t('The user\'s custom Google Analytics id.'),
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Updated timestamp.'),
+			),
+		),
+		'primary key' => array(
+			'uid'
+		),
+		'indexes' => array(
+			'updated' => array('updated'),
+		),
+	);
+	
+	return $schema;
+}
+
+/**
+ * Create profile data table
+ */
+function afo_profile_update_6000() {
+	$ret = array();
+	
+	$table_spec = array(
+		'description' => t('Custom Profile Data'),
+		'fields' => array(
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The {user}.uid of the user'),
+			),
+			'contact_setting' => array(
+				'type' => 'int',
+				'size' => 'small',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The user\'s contact setting selection.'),
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Updated timestamp.'),
+			),
+		),
+		'primary key' => array(
+			'uid'
+		),
+		'indexes' => array(
+			'updated' => array('updated'),
+		),
+	);
+	
+	
+	db_create_table($ret, 'afo_profile_data', $table_spec);
+	
+	return $ret;
+}
+
+/**
+ * Add analytics_id field
+ */
+function afo_profile_update_6001() {
+
+	$ret = array();
+
+	$spec = array(
+		'type' => 'char',
+		'length' => 20,
+		'not null' => TRUE,
+		'default' => '',
+		'initial' => '',
+		'description' => t('The user\'s custom Google Analytics id.'),
+	);
+
+	db_add_field($ret, 'afo_profile_data', 'analytics_id', $spec);
+
+	return $ret;
+}

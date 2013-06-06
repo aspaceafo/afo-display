@@ -1,0 +1,275 @@
+<?php
+// $Id$
+
+function afo_popularity_install() {
+	drupal_install_schema('afo_popularity');
+}
+
+function afo_popularity_uninstall() {
+	drupal_uninstall_schema('afo_popularity');
+}
+
+function afo_popularity_schema() {
+	// node rankings
+	$schema['afo_popularity_rankings_node'] = array(
+		'description' => t('Stores node rankings for AFO Popularity module.'),
+		'fields' => array(
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The {node}.nid to which the ranking applies.')
+			),
+			'ranking_score' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The node\'s ranking score.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.')
+			),
+		),
+		'primary key' => array(
+			'nid'
+		),
+		'indexes' => array(
+			'ranking_score' => array('ranking_score'),
+			'updated' => array('updated'),
+		),
+	);
+	
+	// user rankings
+	$schema['afo_popularity_rankings_user'] = array(
+		'description' => t('Stores user rankings for AFO Popularity module.'),
+		'fields' => array(
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The {users}.uid to which the ranking applies.')
+			),
+			'ranking_score' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The user\'s ranking score.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.')
+			),
+		),
+		'primary key' => array(
+			'uid'
+		),
+		'indexes' => array(
+			'ranking_score' => array('ranking_score'),
+			'updated' => array('updated'),
+		),
+	);
+		
+	return $schema;
+	
+}
+
+/**
+ * Add index to ranking_score columns
+ */
+function afo_popularity_update_6000() {
+	$ret = array();
+	db_add_index($ret, 'afo_popularity_rankings_user', 'ranking_score', array('ranking_score'));
+	db_add_index($ret, 'afo_popularity_rankings_node', 'ranking_score', array('ranking_score'));
+	return $ret;
+}
+
+/**
+ * Add index to ranking_score columns
+ */
+function afo_popularity_update_6001() {
+	$ret = array();
+	db_add_index($ret, 'afo_popularity_rankings_user', 'updated', array('updated'));
+	db_add_index($ret, 'afo_popularity_rankings_node', 'updated', array('updated'));
+	return $ret;
+}
+
+/**
+ * Add popularity and created fields to node_term
+ */
+function afo_popularity_update_6002() {
+	$ret = array();
+	
+	// popularity
+	db_add_field(
+		$ret,
+		'term_node', 
+		'popularity', 
+		array(
+			'type' => 'int',
+			'unsigned' => TRUE,
+			'not null' => TRUE,
+			'default' => 0,
+			'initial' => 0,
+			'description' => 'Duplicate of node popularity for optimized queries.',
+		)
+	);
+
+	// created
+	db_add_field(
+		$ret,
+		'term_node', 
+		'created',
+		array(
+			'type' => 'int',
+			'unsigned' => TRUE,
+			'not null' => TRUE,
+			'default' => 0,
+			'initial' => 0,
+			'description' => 'Duplicate of node created for optimized queries.',
+		)
+	);
+	
+	// popularity, created index
+	db_add_index($ret, 'term_node', 'popularity_created', array('popularity', 'created'));	
+	
+	return $ret;
+}
+
+/**
+ * Add index for tid, popularity, created
+ */
+function afo_popularity_update_6003() {
+	$ret = array();
+	db_add_index($ret, 'term_node', 'tid_popularity_created', array('tid', 'popularity', 'created'));
+	return $ret;
+}
+
+/**
+ * Add popularity and created fields to node_term
+ */
+function afo_popularity_update_6004() {
+	$ret = array();
+	
+	// popularity
+	db_add_field(
+		$ret,
+		'term_user', 
+		'popularity', 
+		array(
+			'type' => 'int',
+			'unsigned' => TRUE,
+			'not null' => TRUE,
+			'default' => 0,
+			'initial' => 0,
+			'description' => 'Duplicate of user popularity for optimized queries.',
+		)
+	);
+
+	// created
+	db_add_field(
+		$ret,
+		'term_user', 
+		'created',
+		array(
+			'type' => 'int',
+			'unsigned' => TRUE,
+			'not null' => TRUE,
+			'default' => 0,
+			'initial' => 0,
+			'description' => 'Duplicate of user created for optimized queries.',
+		)
+	);
+	
+	// popularity, created index
+	db_add_index($ret, 'term_user', 'popularity_created', array('popularity', 'created'));	
+	
+	return $ret;
+}
+
+/**
+ * Add index for term_user: tid, popularity, created
+ */
+function afo_popularity_update_6005() {
+	$ret = array();
+	db_add_index($ret, 'term_user', 'tid_popularity_created', array('tid', 'popularity', 'created'));
+	return $ret;
+}
+
+/**
+ * Fix size of created cols
+ */
+function afo_popularity_update_6006() {
+	$ret = array();
+	
+	// must remove old indexes+keys that use changed field
+	db_drop_index($ret, 'term_node', 'popularity_created');
+	db_drop_index($ret, 'term_user', 'popularity_created');
+	db_drop_index($ret, 'term_node', 'tid_popularity_created');
+	db_drop_index($ret, 'term_user', 'tid_popularity_created');
+
+	db_change_field($ret, 'term_node', 'created', 'created',
+		array('type' => 'int', 'not null' => TRUE, 'default' => 0, 'description' => 'Created timestamp.'),
+		array('indexes' => array(
+			'popularity_created' => array('popularity', 'created'),
+			'tid_popularity_created' => array('tid', 'popularity', 'created'),
+		))
+	);
+
+	db_change_field($ret, 'term_user', 'created', 'created',
+		array('type' => 'int', 'not null' => TRUE, 'default' => 0, 'description' => 'Created timestamp.'),
+		array('indexes' => array(
+			'popularity_created' => array('popularity', 'created'),
+			'tid_popularity_created' => array('tid', 'popularity', 'created'),
+		))
+	);
+
+	return $ret;
+}
+
+/**
+ * Add index for tid, created on both term tables
+ */
+function afo_popularity_update_6007() {
+	$ret = array();
+	db_add_index($ret, 'term_node', 'tid_created', array('tid', 'created'));
+	db_add_index($ret, 'term_user', 'tid_created', array('tid', 'created'));
+	return $ret;
+}
+
+/**
+ * Add index for status, type, created on node
+ */
+function afo_popularity_update_6008() {
+	$ret = array();
+	db_add_index($ret, 'node', 'status_type_created', array('status', 'type', 'created'));
+	return $ret;
+}
+
+/**
+ * Add index for status, type, created, nid on node (and drop previous version) 
+ */
+function afo_popularity_update_6009() {
+	$ret = array();
+	db_drop_index($ret, 'node', 'status_type_created');
+	db_add_index($ret, 'node', 'status_type_created_nid', array('status', 'type', 'created', 'nid'));
+	return $ret;
+}
+
+/**
+ * Add index for status, type, created, nid on node (and drop previous version) 
+ */
+function afo_popularity_update_6010() {
+	$ret = array();
+	db_add_index($ret, 'term_node', 'created_tid', array('created', 'tid'));
+	db_add_index($ret, 'term_user', 'created_tid', array('created', 'tid'));
+	return $ret;
+}

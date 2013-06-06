@@ -1,0 +1,658 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Adds custom menus & menu items for AFO site.
+ */
+
+/**
+ * Implementation of hook_menu().
+ */
+function afo_custommenu_menu() {
+	$items['control-panel'] = array(
+		'title' => 'Control Panel',
+		'title callback' => 'afo_custommenu_welcome_title',
+		'description' => 'User Overview and Options',
+		'page callback' => 'afo_custommenu_welcome_page',
+		'access callback' => 'afo_custommenu_check_authenticated_user',
+		'type' => MENU_NORMAL_ITEM,
+		'file' => 'afo_custommenu_welcome.inc',
+	);
+
+	$items['home'] = array(
+		'title' => 'Home',
+		'description' => 'Artists File Online home page',
+		'page callback' => 'afo_custommenu_homepage',
+		'access arguments' => array('access content'),
+		'type' => MENU_SUGGESTED_ITEM,
+		'file' => 'afo_custommenu.homepage.inc',
+	);
+
+	$items['sign-up'] = array(
+		'title' => 'Sign Up',
+		'description' => 'Learn about membership and join Local Artists',
+		'page callback' => 'afo_custommenu_signup_page',
+		'access arguments' => array('access content'),
+		'type' => MENU_NORMAL_ITEM,
+		'file' => 'afo_custommenu.signup.inc',
+	);
+	
+	$items['city'] = array(
+		'title' => null,
+		'title callback' => 'afo_custommenu_citypage_title', 
+		'page callback' => 'afo_custommenu_citypage',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_custommenu.city.inc',
+	);
+	
+	$items['browse/city'] = array(
+		'title' => 'Cities',
+		'page callback' => 'afo_custommenu_citylist',
+		'access arguments' => array('access content'),
+		'file' => 'afo_custommenu.city.inc',
+	);
+
+	$items['community/blog'] = array(
+		'title' => '',
+		'page callback' => 'afo_custommenu_blogpage',
+		'page arguments' => array(array('display' => 'full')),
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_custommenu.blog.inc',
+	);	
+	
+	$items['community/calendar'] = array(
+		'title' => 'Events Calendar',
+		'page callback' => 'afo_custommenu_eventspage',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_custommenu.events.inc',
+	);
+	
+	$items['events/ajax'] = array(
+		'page callback' => 'afo_custommenu_events_filteredlist',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_custommenu.events.inc',
+	);
+	
+	$items['admin/settings/afo'] = array(
+		'title' => 'AFO Settings',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_custommenu_admin_general'),
+		'access arguments' => array('administer content'),
+		'file' => 'afo_custommenu.admin.inc',
+	);
+
+	$items['admin/settings/afo/general'] = array(
+		'title' => 'AFO General Settings',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_custommenu_admin_general'),
+		'access arguments' => array('administer content'),
+		'file' => 'afo_custommenu.admin.inc',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+	);
+	
+	$items['admin/settings/afo/custommenu'] = array(
+		'title' => 'AFO Custom Menu Settings',
+		'description' => 'Admin settings for AFO Custom Menu module',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_custommenu_admin_settings'),
+		'file' => 'afo_custommenu.admin.inc',
+		'access arguments' => array('administer content'),
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	$items['admin/settings/afo/homepage'] = array(
+		'title' => 'AFO Home Page Settings',
+		'description' => 'Admin settings for AFO Home Page',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_custommenu_homepage_settings'),
+		'file' => 'afo_custommenu.admin.inc',
+		'access arguments' => array('administer content'),
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	$items['me'] = array(
+		'title' => t('My Page'),
+		'title callback' => 'afo_custommenu_me_title',
+		'page callback' => 'afo_custommenu_me_router',
+		'access callback' => true,
+	);
+
+	$items['editor'] = array(
+		'title' => t('Editor'),
+		'page callback' => 'afo_editor_page',
+		'access arguments' => array('edit content'),
+		'file' => 'afo_custommenu.editor.inc',
+	);
+	$items['editor/main'] = array(
+		'title' => 'Editor Main',
+		'page callback' => 'afo_editor_page',
+		'access arguments' => array('edit content'),
+		'file' => 'afo_custommenu.editor.inc',
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+	);
+	$items['editor/settings'] = array(
+		'title' => 'Site Settings',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_editor_settings'),
+		'access arguments' => array('administer editor settings'),
+		'file' => 'afo_custommenu.editor.inc',
+		'type' => MENU_CALLBACK,
+	);
+	$items['editor/users-list'] = array(
+		'title' => 'Users List',
+		'page callback' => 'afo_editor_userslist',
+		'access arguments' => array('edit content'),
+		'file' => 'afo_custommenu.editor.inc',
+		'type' => MENU_LOCAL_TASK,
+		'weight' => 0,
+	);
+	$items['editor/delete/user'] = array(
+		'title' => 'Delete user',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_editor_deleteuser'),
+		'access arguments' => array('delete users'),
+		'file' => 'afo_custommenu.editor.inc',
+		'type' => MENU_CALLBACK,
+	);
+	$items['editor/hits'] = array(
+		'title' => 'Top Hits',
+		'page callback' => 'afo_editor_hitslist',
+		'access arguments' => array('edit content'),
+		'file' => 'afo_custommenu.editor.inc',
+		'type' => MENU_CALLBACK,
+	);
+	
+	return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function afo_custommenu_perm() {
+  return array('edit content', 'administer editor settings', 'show events', 'delete users');
+}
+
+/**
+ * Implementation of hook_nodeapi
+ */
+function afo_custommenu_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+	switch($op) {
+		case 'view':
+			// if blog post node, modify content
+			if($node->type == variable_get('afo_settings_types_blog', 'none')) {
+				module_load_include('inc', 'afo_custommenu', 'afo_custommenu.blog');
+				afo_custommenu_modify_blog_content($node);
+			}
+			break;
+	}
+}
+ 
+/**
+ * Implementation of hook_block().
+ */
+function afo_custommenu_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = t('afo_custommenu: User Info');
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+			
+			$blocks[1]['info'] = t('afo_custommenu: Search Artists');
+			$blocks[1]['cache'] = BLOCK_NO_CACHE;
+			
+			$blocks[2]['info'] = t('afo_custommenu: Artwork Options');
+			$blocks[2]['cache'] = BLOCK_NO_CACHE;
+
+			$blocks[3]['info'] = t('afo_custommenu: Manage Content');
+			$blocks[3]['cache'] = BLOCK_NO_CACHE;
+
+			$blocks[4]['info'] = t('afo_custommenu: Become a member');
+			$blocks[4]['cache'] = BLOCK_NO_CACHE;
+			
+			$blocks[5]['info'] = t('afo_custommenu: Sign Up & Membership Info');
+			$blocks[5]['cache'] = BLOCK_NO_CACHE;			
+			
+			return $blocks;
+			
+		case 'view':
+			// get data to pass to blocks:
+			if(arg(0)=='node') {
+				$node_data = db_fetch_object(db_query('SELECT type, uid FROM {node} WHERE nid = %d', arg(1)));
+			}
+
+			switch($delta) {
+
+				// user info block
+				case 0:
+					if(arg(0)=='node' && arg(2)!='edit') {
+						if(in_array($node_data->type, custommenu_settings_get('content types', 'userinfo'))) {
+							$uid = (int) $node_data->uid;
+						}
+					}
+					elseif(arg(0)=='user') {
+						$uid = arg(1);
+					}						
+					if(is_numeric($uid)) {
+						module_load_include('inc', 'afo_custommenu', 'afo_custommenu.user_info');
+						$block = custommenu_buildblock_userinfo($uid);
+						return $block;
+					}
+					return FALSE;
+					
+				// search users block
+				case 1:
+					$block['subject'] = t('Search Artists');
+					$block['content'] = drupal_get_form('afo_custommenu_usersearch_box', 'afo_custommenu_usersearch_box');
+					return $block;
+
+				// artwork options block
+				case 2:
+					if(arg(0)=='node') {
+						if($node_data->type == variable_get('afo_settings_types_artwork', 'none')) {
+							module_load_include('inc', 'afo_custommenu', 'afo_custommenu.artwork_options');
+							$block['subject'] = '';
+							$block['content'] = afo_custommenu_artwork_options(arg(1), $node_data->type, $node_data->uid);
+						}
+					}
+					return $block;					
+
+				// manage content block
+				case 3:
+					$manage_menu_name = variable_get('afo_custommenu_manage_menuname', null);
+					if(!$manage_menu_name) return null;
+
+					global $user;
+					$show = false;
+
+					// if user, check if current user
+					if(arg(0) == 'user' && arg(1) == $user->uid) $show = true;
+					// if node, check if owned by current user and artwork or folder
+					elseif(arg(0) == 'node') {
+						if(arg(1) == 'add' || arg(1) == 'edit') {
+							$show = true;
+						}
+						else {
+							$result = db_result(db_query('SELECT type FROM {node} WHERE nid = %d AND uid = %d', arg(1), $user->uid));
+							//if($result == variable_get('afo_portfolio_folder_content_type', 'folder') || $result == variable_get('afo_portfolio_artwork_content_type', 'artwork')) $show = true;
+							if($result) $show = true;
+						}
+					}
+					// allow other paths
+					elseif(arg(0) == 'user' && arg(1) == 'portfolio') $show = true;
+					elseif(arg(0) == 'user' && arg(1) == 'me') $show = true;
+					
+					// return block:
+					if($show) {
+						//$block['subject'] = t('My pages');
+						$block['content'] = menu_tree($manage_menu_name);
+						return $block;
+					}
+					break;
+
+				// purchase preview block
+				case 4:
+					$block['content'] = afo_custommenu_becomemember_block();
+					return $block;
+					break;
+
+				// sign up & membership info block
+				case 5:
+					module_load_include('inc', 'afo_custommenu', 'afo_custommenu.signup');
+					$block = afo_custommenu_signup_infoblock();
+					return $block;
+					break;
+					
+			}
+			break;
+	}
+}
+
+/**
+ * Implements hook_term_path
+ * Modify taxonomy paths
+ */
+function afo_custommenu_term_path($term) {
+
+	$tid = $term->tid;
+	
+	$paths = array(
+		1 => '', // forum
+		2 => "browse/regions=$tid", // region
+		3 => "browse/tags=$tid", // medium
+		5 => "browse/tags=$tid", // tags
+		6 => "city/$tid", // city
+		7 => null, // original tags
+	);
+	
+	if(array_key_exists($term->vid, $paths)) return $paths[$term->vid];
+	else return 'taxonomy/term/'. $term->tid;
+}
+
+
+/**
+ * Return settings for the module.
+ */
+function custommenu_settings_get($op = 'content types', $a = 'userinfo') {
+	switch($op) {
+		case 'content types':
+			return array('artwork', 'profile', 'exhibition');
+	}
+}
+
+/**
+ * Title callback for welcome page.
+ */
+function afo_custommenu_welcome_title() {
+	global $user;
+	return t('Control Panel: @name', array('@name' => $user->name));
+}
+
+/**
+ * Title callback for City page.
+ */
+function afo_custommenu_citypage_title($tid) {
+}
+
+/**
+ * Title callback for My Page ("me") page.
+ */
+function afo_custommenu_me_title() {
+	global $user;
+	if(in_array('artist', $user->roles)) return t('My Portfolio');
+	elseif(in_array('curator', $user->roles)) return t('My Curating');
+	return null;
+}
+/**
+ * Route "me" request to user page
+ */
+function afo_custommenu_me_router() {
+	global $user;
+	drupal_goto('user/'.$user->uid);
+}
+
+/**
+ * Check if authenticated user.
+ */
+function afo_custommenu_check_authenticated_user() {
+	global $user;
+	if($user->uid > 0) return TRUE;
+	else return FALSE;
+}
+
+/**
+ * Form submit for city text search
+ */
+function afo_custommenu_citysearch_submit($form, &$form_state) {
+	module_load_include('inc', 'afo_custommenu', 'afo_custommenu.city');
+	_afo_custommenu_citysearch_formsubmit($form, $form_state);
+}
+
+/**
+ * Call function to create list of events
+ */
+function afo_custommenu_events_list($options = array()) {
+	module_load_include('inc', 'afo_custommenu', 'afo_custommenu.events');
+	$content = _afo_custommenu_events_list($options);
+	return $content;
+}
+
+/**
+ * Return city/region term for given uid or nid
+ */
+function afo_custommenu_getterms($vocab, $val, $op = 'user', $make_singular = true) {
+	if(!is_numeric($val)) return null;
+
+	$vocabs = array(
+		'city' => variable_get('afo_custommenu_vocab_city', null),
+		'region' => variable_get('afo_custommenu_vocab_region', null),
+		'medium' => variable_get('afo_custommenu_vocab_medium', null),
+		'tags' => variable_get('afo_custommenu_vocab_tags', null),
+	);
+	
+	$vid = $vocabs[$vocab];
+	if(!is_numeric($vid)) return null;
+
+	switch($op) {
+		case 'node':
+			$table = 'term_node';
+			$key = 'nid';
+			break;
+			
+		default: // user
+			$table = 'term_user';
+			$key = 'uid';
+			break;
+	}
+	
+	$query = db_query('SELECT t.tid, d.name 
+	FROM {%s} t 
+	LEFT JOIN {term_data} d ON d.tid = t.tid 
+	WHERE %s = %d AND d.vid = %d
+	ORDER BY tid
+	', $table, $key, $val, $vid);
+	
+	while($row = db_fetch_object($query)) $results[] = $row;
+	
+	if($make_singular && count($row) == 1) $results = $results[0];
+	return $results;
+}
+
+/**
+ * Form builder; Output a search form for the search block and the theme's search box.
+ *
+ * @ingroup forms
+ * @see search_box_form_submit()
+ * @see theme_search_box_form()
+ */
+function afo_custommenu_usersearch_box(&$form_state, $form_id) {
+  $form[$form_id] = array(
+    '#title' => t('Search Artists'),
+    '#type' => 'textfield',
+    '#size' => 15,
+    '#default_value' => '',
+    '#attributes' => array('title' => t('Enter a user name.')),
+  );
+  $form['submit'] = array('#type' => 'submit', '#value' => t('Go'));
+  $form['#submit'][] = 'afo_custommenu_usersearch_box_submit';
+  $form['#validate'][] = 'search_box_form_validate';
+
+  return $form;
+}
+
+/**
+ * Process a block search form submission.
+ */
+function afo_custommenu_usersearch_box_submit($form, &$form_state) {
+  // The search form relies on control of the redirect destination for its
+  // functionality, so we override any static destination set in the request,
+  // for example by drupal_access_denied() or drupal_not_found()
+  // (see http://drupal.org/node/292565).
+  if (isset($_REQUEST['destination'])) {
+    unset($_REQUEST['destination']);
+  }
+  if (isset($_REQUEST['edit']['destination'])) {
+    unset($_REQUEST['edit']['destination']);
+  }
+
+
+  $form_id = $form['form_id']['#value'];
+  $form_state['redirect'] = 'search/user/'. trim($form_state['values'][$form_id]);
+}
+
+/**
+ * Call user search form builder
+ */
+function afo_editor_usersearch_form() {
+	module_load_include('inc', 'afo_custommenu', 'afo_custommenu.editor');
+	return _afo_editor_usersearch_form();
+}
+/**
+ * Call user search form submit
+ */
+function afo_editor_usersearch_form_submit($form, $form_state) {
+	module_load_include('inc', 'afo_custommenu', 'afo_custommenu.editor');
+	_afo_editor_usersearch_form_submit($form, $form_state);
+}
+/**
+ * Call user delete form submit
+ */
+function afo_editor_deleteuser_submit($form, $form_state) {
+	module_load_include('inc', 'afo_custommenu', 'afo_custommenu.editor');
+	_afo_editor_deleteuser_submit($form, $form_state);
+}
+
+/********** site statement **/
+function afo_custommenu_site_statement() {
+	$nid = variable_get('afo_custommenu_homepage_node', null);
+	if(is_numeric($nid)) {
+		$content = db_result(db_query('SELECT body FROM {node_revisions} WHERE nid = %d', $nid));
+		if($content) {
+			return $content;
+		}
+	}
+	
+	return t('
+<p>Operating for almost 40 years, with over 10,000 current users, the Irving Sandler Artists File is not only the largest but also the earliest established artist registry in the world. Currently receiving over 1.2 million hits annually, it is among the top-ranking artist registries in the world.</p>
+
+<p>local-artists.org allows you to present your work effectively, initiate contact from peer to peer and from artist to curator, and offers many new networking possibilities as well as dynamic search features.  Among many other features, the Artist Membership Account allows you to upload unlimited images and videos to your portfolio.</p>
+
+<p>Revenue created through Artist Membership Accounts will be redistributed among the members of local-artists.org themselves, providing travel, research and production grants.</p>
+
+<p>Regardless of whether you are a paying member or a free user, local-artists.org is an invaluable tool in sharing your art with the world.</p>
+
+<p>Join this growing community and network!</p>
+
+<p>local-artists.org is made possible with support from The Andy Warhol Foundation for the Visual Arts.</p>
+');
+}
+
+/** ************************************************* Become a member block form **/
+
+function afo_custommenu_becomemember_block($showlink = true) {
+	global $user;
+
+	// do not display if not an artist
+	if($user->uid > 0 && !in_array('artist', $user->roles)) return null;
+
+	// do not display if already a member
+	if(module_exists('afo_member')) {
+		$status = afo_member_get_status($user->uid);
+		if($status['status'] == 2) return null;
+	}
+
+	$content .= '<h3 style="margin-bottom:0">Upgrade Membership</h3>';
+
+	$content .= '
+		<div style="margin:8px 0">'.t('Upgrade your user account with an Artist Membership and enjoy advanced features.').'</div>';
+	
+	if($showlink) {
+		$content .= l(t('» Learn more'), 'membership');
+	}
+
+	if($status['status'] !== 0) {
+		$product_nid = variable_get('afo_member_product_nid', null);
+		if($product_nid) 
+		{
+			$content .= '<div style="margin: 8px 0;">';
+			$content .= l(t('Buy Now'), 'node/'.$product_nid, array('attributes'=>array('class'=>'buttonLink')));
+			$content .= '</div>';
+		} 
+	}
+	
+	return $content;
+}
+
+/** ************************************************* THEME FUNCTIONS **/
+
+/**
+ * Implementation of hook_theme
+ */
+function afo_custommenu_theme() {
+	return array(
+		'afo_custommenu_event_listing' => array(
+			'arguments' => array(
+				'event' => null,
+			),
+			'file' => 'afo_custommenu.events.inc',
+		),	
+	);
+}
+
+/**
+ * Implementation of hook_preprocess_page.
+ */
+function afo_custommenu_preprocess_page(&$variables) {
+
+	// get node type:
+	if(arg(0) == 'node') {
+		$node_type = db_result(db_query('SELECT type FROM {node} WHERE nid = %d', arg(1)));
+		$variables['node_type'] = $node_type;	
+	}
+
+	// add $hide_title based on admin settings
+	if($variables['node_type'] && arg(2) != 'edit' && arg(2) != 'delete') {
+		$hide_titles = variable_get('afo_custommenu_titles_hide', array());
+		if(strlen($variables['node_type']) > 0 && $hide_titles[$node_type] === $variables['node_type']) {
+			$variables['hide_title'] = true;
+		}
+	}
+	
+	// add title prefix for editing node
+	if(arg(0) == 'node' && arg(2) == 'edit') {
+		$variables['title_prefix'] = t('Edit » ');
+	}
+	
+	// add icon to certain types
+	if($variables['node_type']) {
+		$show_icon = variable_get('afo_custommenu_titles_icon', null);
+		if($show_icon[$variables['node_type']] == $variables['node_type']) {
+			$icon = theme('afo_display_icon', $variables['node_type'], array('size'=>'small'));
+			if($icon) $variables['title_icon'] = $icon;
+		}
+	}
+
+}
+ 
+/** ************************************************* VIEWS **/
+
+/**
+ * Implementation of hook_views_data()
+ */
+function afo_custommenu_views_data() {
+
+	// User thumbnail
+	$data['users']['user_thumbnail'] = array(
+		'title' => t('AFO: User Thumbnail'),
+		'help' => t('Thumbnail drawn from user\'s portfolio.'),
+		'field' => array(
+			'table' => 'users',
+			'field' => 'uid',
+			'handler' => 'afo_custommenu_views_handler_field_userthumbnail',
+			'click sortable' => FALSE,
+		),
+	);
+
+	return $data;
+	
+}
+/**
+ * Implementation of hook_views_handlers().
+ */
+function afo_custommenu_views_handlers() {
+  return array(
+    'handlers' => array(
+      'afo_custommenu_views_handler_field_userthumbnail' => array(
+        'parent' => 'views_handler_field',
+        'path' => drupal_get_path('module', 'afo_custommenu'),
+      ),
+    ),
+  );
+}

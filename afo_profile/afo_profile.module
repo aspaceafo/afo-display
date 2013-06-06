@@ -1,0 +1,449 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Adds functions to user profiles.
+ */
+ 
+/**
+ * Implementation of hook_menu().
+ */
+function afo_profile_menu() {
+	$items['admin/settings/afo/profile'] = array(
+		'title' => 'AFO Profile Settings',
+		'description' => 'Admin settings for AFO Profile module',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_profile_admin_settings'),
+		'file' => 'afo_profile.admin.inc',
+		'access arguments' => array('administer content'),
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	return $items;
+}
+
+/**
+ * Implements hook_perm
+ */
+function afo_profile_perm() {
+	return array('embed twitter feed', 'embed google analytics');
+}
+
+/**
+ * Contact setting options
+ */
+function afo_profile_contact_setting_options() {
+	return array(
+		0 => t('All users and visitors'),
+		1 => t('Logged-in users only'),
+		2 => t('No one'),
+	);
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function afo_profile_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+	// ARTWORK
+	if($node->type == afo_portfolio_gettypes('artwork') && $op == 'view') {
+
+		// try embed analytics
+		afo_profile_analytics($node->uid);				
+
+	}
+}
+
+/**
+ * Implements hook_mail_alter
+ */
+function afo_profile_mail_alter(&$message) {
+	if($message['id'] == 'contact_user_mail' || $message['id'] == 'anonymous_contact_user_mail') {
+		$message['to'] .= ', afonline@artistsspace.org';
+	}
+}
+
+/********************************************************* Profile input */
+
+/**
+ * Implementation of hook_form_FORM_ID_alter.
+ */
+function afo_profile_form_alter(&$form, &$form_state, $form_id) {
+
+	global $user;
+
+	// get custom profile data
+	$afo_profile_data = afo_profile_data_get($form['#uid']);
+
+	/*************** alter profile or register forms **/
+	if($form_id == 'user_profile_form' || $form_id == 'user_register') {
+
+		/** add custom submit function **/
+		$form['#submit'][] = 'afo_profile_formsubmit';
+		
+
+		/** alter name field **/
+		$form['account']['name']['#title'] = t('Full Name');
+		$form['account']['name']['#description'] = t('<b>E.g. John E. Doe.</b> This will be your unique user name, as well as your profile name. ') . $form['account']['name']['#description'];		
+
+		/** alter twitter field **/
+		if(!user_access('embed twitter feed')) {
+			$form['Profile']['profile_twitter']['#disabled'] = true;
+		}
+	
+		/** Alter user terms fieldset **/
+		if(is_array($form['user_terms'])) {
+			$form['user_terms']['#title'] = t('Categories');
+		}
+	
+		/** Hide weird form item **/
+		unset($form['user_terms_vids']['#value'][0]);
+		unset($form['user_terms']['user_terms_0']);
+		
+		/** Hide Original Terms **/
+		if(!user_access('administer content')) {
+			unset($form['user_terms_vids']['#value'][7]);
+			unset($form['user_terms']['user_terms_7']);
+		}
+		
+		/** full text items **/
+		if(is_array($form['Profile']['profile_statement'])) {
+			//$form['Profile']['profile_statement']['#default_value'] = theme('afo_display_text', $form['Profile']['profile_statement']['#default_value'], array('output'=>'html'));
+			
+			// move statement to its own sub array & add input format to trigger WYSIWYG 
+			$form['Profile']['statement'] = array(
+				'profile_statement' => $form['Profile']['profile_statement'],
+				'format' => filter_form(null),
+			);
+			// remove old version
+			unset($form['Profile']['profile_statement']);
+		}
+
+	} 
+
+	/*************** alter only profile form **/
+	if($form_id == 'user_profile_form') {
+		// redirect to control panel page after edit
+		$form['#redirect'] = 'control-panel';
+
+		// contact enable
+		unset($form['contact']['contact']);
+		/*
+		$form['contact']['contact']['#display'] = 'normal';
+		$form['contact']['contact']['#title'] = t('Enable your personal contact form');
+		$form['contact']['contact']['#description'] = t('Allow other users to contact you via a personal contact form. Your email address will not be made public.');
+		*/
+		
+		// contact setting
+		$contact_setting = isset($afo_profile_data['contact_setting']) ? $afo_profile_data['contact_setting'] : 0;
+		$form['contact']['contact_setting'] = array(
+			'#type' => 'radios',
+			'#title' => t('Contact form privacy'),
+			'#description' => t('Choose what level(s) of users can access your personal contact form. Your email address will not be made public at any setting.'),
+			'#options' => afo_profile_contact_setting_options(),
+			'#default_value' => $contact_setting,
+			'#weight' => 1,
+		);
+		
+		// remove credentials box if not curator
+		if(!in_array('curator', $user->roles)) {
+			unset($form['Profile']['profile_curator_credentials']);
+		}
+
+		if(user_access('embed google analytics')) {
+			// google analytics id
+			$form['tracking'] = array(
+				'#type' => 'fieldset',
+				'#title' => t('Traffic on your pages'),
+				'#weight' => 6,
+			);
+			$ga_explain .= '<div style="width: 450px">';
+			$ga_explain .= t('You can monitor the number of hits your pages get using Google Analytics. A Google Account (free) is required to use Google Analytics. Follow the steps below to register your Local Artists pages with Google Analytics.').'<br /><br />';
+			$ga_explain .= t('Step 1: Open Google Analytics').'<br />';
+			$ga_explain .= '<div class="secondaryText">'.t('Visit .').l('http://www.google.com/analytics/', 'http://www.google.com/analytics/').t(' and click Access Analytics.').'</div><br />';
+			$ga_explain .= t('Step 2: Create Profile in Google').'<br />';
+			$ga_explain .= '<div class="secondaryText">'.t('Enter local-artists.org as the domain for the profile. It will take a day or two to recognize your tracking ID.').'</div><br />';
+			$ga_explain .= theme('image', 'sites/default/files/images/Google_Screenshot_Full.png').'<br />';
+			$ga_explain .= t('Step 3: Add Profile Tracking ID Below').'<br />';
+			$ga_explain .= '<div class="secondaryText">'.t('Google Analytics will provide a Tracking ID for the profile you created. You need to enter only this code, not the block of HTML they also provide.').'</div><br />';
+			$ga_explain .= '</div>';
+			$form['tracking']['explanation'] = array(
+				'#value' => $ga_explain,
+				'#weight' => -1,
+			);
+			$form['tracking']['analytics_id'] = array(
+				'#type' => 'textfield',
+				'#title' => t('Google Analytics tracking ID'),
+				'#description' => t('To track your pages\' traffic, create a new profile on your Google Analytics account for the domain "local-artists.org" and paste the supplied ID here (example: <em>UA-10597439-9</em>).'),
+				'#default_value' => $afo_profile_data['analytics_id'],
+			);
+		}
+		
+	}
+
+	/*************** alter contact form (from anonymous contact module) **/
+	if($form_id == 'anonymous_contact_form') {
+		// add name and email as default values if not visitor
+		global $user;
+		if($user->uid > 0) {
+			$form['name']['#default_value'] = $user->name;
+			$form['from']['#default_value'] = $user->mail;
+		}
+		
+		// if not allowed to contact this user, erase form
+		if(!afo_profile_contactaccess($form['recipient']['#value']->uid)) {
+			afo_backend_disableform($form);
+			drupal_set_message(t('You are not permitted to contact this user.'), 'error');
+		}
+		
+		// add custom validation
+		$form['#validate'][] = 'afo_profile_contactformvalidate';
+	}
+	
+}
+/**
+ * Profile form submit
+ */
+function afo_profile_formsubmit($form, &$form_state) {
+	
+	if(isset($form_state['values']['contact_setting'])) {
+		$afo_profile_data['contact_setting'] = $form_state['values']['contact_setting'];
+	}
+	if(isset($form_state['values']['analytics_id'])) {
+		$afo_profile_data['analytics_id'] = $form_state['values']['analytics_id'];
+	}
+	
+	if(is_array($afo_profile_data)) {
+		if(is_numeric($form['#uid'])) $user_uid = $form['#uid'];
+		afo_profile_data_set($afo_profile_data, $user_uid);	
+	}
+	
+}
+/**
+ * Contact form validate
+ */
+function afo_profile_contactformvalidate($form, &$form_state) {
+	if(!afo_profile_contactaccess($form['recipient']['#value']->uid)) {
+		form_set_error('', t('You are not permitted to contact this user.'));
+	}	
+}
+
+/********************************************************* Profile display */
+
+/**
+ * Implementation of hook_user.
+ */
+function afo_profile_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+		case 'load':
+			// run statement through afo_display_text filter
+			//if(isset($account->profile_statement)) $account->profile_statement = theme('afo_display_text', $account->profile_statement, array('size'=>'full'));
+			break;			
+
+		case 'delete':
+			// remove user profile data
+			if(is_numeric($account->uid)) {
+				db_query('DELETE FROM {afo_profile_data} WHERE uid = %d', $account->uid);
+			}
+			break;
+	
+		case 'view':		
+			// determine profile display based on args
+			if(!arg(0)=='user' || !is_numeric(arg(1))) break;
+			
+			$profile_page = arg(2);
+			switch($profile_page) {
+				
+				case 'profile':
+					
+					drupal_set_title(check_plain($account->name . ' » '. t('Profile')));
+					$visible_sections = array('Twitter', 'Profile', 'Region', 'summary');
+					$account->content['Profile']['#weight'] = -2;
+					$account->content['Contact information']['#weight'] = -3;
+
+					// embed twitter
+					if(user_access('embed twitter feed', $account)) {
+						if(strlen($account->profile_twitter) > 0) {
+							module_load_include('inc', 'afo_profile', 'afo_profile.twitter');
+							$twitter_script = afo_profile_twitter_get_script($account->profile_twitter);
+							if($twitter_script) {
+								$account->content['Twitter'] = array(
+									'#title' => t('Twitter Feed'),
+									'#type' => 'user_profile_category',
+									'twitter-feed' => array(
+										'#type' => 'user_profile_item',
+										'#value' => $twitter_script,
+									),
+									'#weight' => -5,
+								);
+							}
+						}
+					}
+
+					// location
+					$account->content['Region'] = array(
+						'#weight' => -4,
+						'#title' => t('Location'),
+						'#type' => 'user_profile_category',
+					);
+
+					// get region and city term data:
+					foreach($account->user_terms as $term) {
+						if($term['vid'] == 2) {
+							$region_name = $term['name'];
+							$region_tid = $term['tid'];
+						}
+						elseif($term['vid'] == 6) {
+							$city_name = $term['name'];
+							$city_tid = $term['tid'];
+						}						
+					}
+
+					// region
+					if($account->content['user_terms']['user_terms_2']) {
+						//$account->content['Region']['term_region'] = $account->content['user_terms_2'];
+						$account->content['Region']['term_region']['#title'] = t('Region');
+						$account->content['Region']['term_region']['#weight'] = 0;
+						$account->content['Region']['term_region']['#type'] = 'user_profile_item';
+						$account->content['Region']['term_region']['#value'] = l($region_name, 'browse/type=artists/regions='.$region_tid, array('attributes'=>array('title'=>t('Browse artists in %region', array('%region'=>$region_name)))));
+					}
+					
+					// city
+					if(isset($account->content['user_terms']['user_terms_6'])) {
+						//$account->content['Region']['term_city'] = $account->content['user_terms_6'];
+						$account->content['Region']['term_city']['#title'] = t('City');
+						$account->content['Region']['term_city']['#weight'] = 1;
+						$account->content['Region']['term_city']['#type'] = 'user_profile_item';
+						$account->content['Region']['term_city']['#value'] = l($city_name, 'city/'.$city_tid, array('attributes'=>array('title'=>t('Go to %city page', array('%city'=>$city_name)))));
+					}
+					
+					break;
+					
+				case 'cv':
+					drupal_set_title(check_plain($account->name . ' » '. t('CV')));
+					$visible_sections = array('cv');
+					break;
+					
+				default:
+					// default = portfolio view
+					
+					// change title
+					if(in_array('artist', $account->roles)) $pagename = t('Portfolio');
+					elseif(in_array('curator', $account->roles)) $pagename = t('Curating');
+					if($pagename) drupal_set_title(check_plain($account->name . ' » '. $pagename));
+					
+					$visible_sections = array('portfolio', 'exhibitions', 'open-calls');
+			}
+
+			afo_profile_remove_content($account, $visible_sections);
+			
+			foreach(element_children($account->content) as $k) {
+				$account->content[$k]['#attributes']['class'] = str_replace(' ', '-', $k);
+			}
+			
+			// try embed analytics
+			afo_profile_analytics($account);
+
+			break;
+	}
+}
+/**
+ * Remove sections from $account->content based on array.
+ */
+function afo_profile_remove_content(&$account, $visible_sections) {
+	if(!is_array($visible_sections)) return;
+	
+	foreach($account->content as $key => $section) {
+		if(!in_array($key, $visible_sections)) unset($account->content[$key]);
+	}	
+}
+
+/**
+ * Check if should embed analytics and embed if so
+ */
+function afo_profile_analytics($user) {
+	if(is_numeric($user)) {
+		$user = user_load(array('uid'=>$user));
+	}
+	
+	if(!is_numeric($user->uid)) return null;
+	
+	if(!user_access('embed google analytics', $user)) return null;
+
+	$analytics_id = db_result(db_query('SELECT analytics_id FROM {afo_profile_data} WHERE uid = %d', $user->uid));
+	
+	if(strlen($analytics_id)>0) {
+		module_load_include('inc', 'afo_profile', 'afo_profile.analytics');
+		afo_profile_embed_analytics($analytics_id);
+	}
+}
+
+/**
+ * Determine user access to a given UID's contact form
+ */
+function afo_profile_contactaccess($uid) {
+	global $user;
+	
+	if(!user_access('access anonymous contact form')) return false;
+	
+	$profile_data = afo_profile_data_get($uid);
+	$contact_settings = is_numeric($profile_data['contact_setting']) ? $profile_data['contact_setting'] : 0;
+	
+	switch($profile_data['contact_setting']) {
+		case 0:
+			return true;
+			break;
+			
+		case 1:
+			if($user->uid > 0) return true;
+			break;
+			
+		case 2:
+			return false;
+			break;
+	}
+	
+	return false;
+}
+
+/********************************************************* db functions */
+
+/**
+ * Get profile data
+ */
+function afo_profile_data_get($uid = null) {
+	if(!$uid) {
+		global $user;
+		$uid = $user->uid;
+	}
+	if(!is_numeric($uid)) return null;
+
+	$q = db_query('SELECT * FROM {afo_profile_data} WHERE uid = %d', $uid);
+	if($result = db_fetch_array($q)) return $result;
+	else return null;
+}
+
+/**
+ * Set profile data
+ */
+function afo_profile_data_set($data, $uid = null) {
+	if(!is_array($data)) return null;
+	if(!$uid) {
+		global $user;
+		$uid = $user->uid;
+	}
+	if(!is_numeric($uid)) return null;
+	
+	$record = new stdClass;
+	
+	// SET/VERIFY FIELDS:
+	$record->uid = $uid;
+	$record->updated = time();
+	if(is_numeric($data['contact_setting'])) $record->contact_setting = $data['contact_setting'];
+	if(isset($data['analytics_id'])) $record->analytics_id = check_plain(filter_xss($data['analytics_id'], array()));
+	
+	$existing = afo_profile_data_get($uid);
+	if($existing) drupal_write_record('afo_profile_data', $record, 'uid');
+	else drupal_write_record('afo_profile_data', $record);
+}

@@ -1,0 +1,563 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Calculates and saves popularity of nodes based on custom ranking algorithm.
+ */
+
+/**
+ * Settings for each ranking type.
+ */
+function afo_popularity_ranking_types($ranking_type = 0) {
+	$ranking_types[1] = array(
+		'name' => 'Popularity',
+		'id' => 'popularity',
+		'content types variable' => 'afo_popularity_content_types',
+		'table' => 'afo_popularity_rankings_node',
+		'pkey' => 'nid',
+		'options' => 'content types',
+		'item table' => 'node',
+		'per call' => 500,
+		'new per call' => 200,
+	);
+	$ranking_types[2] = array(
+		'name' => 'Artist Popularity',
+		'id' => 'artistpop',
+		'content types variable' => 'afo_popularity_artistpop_content_types',
+		'table' => 'afo_popularity_rankings_user',
+		'pkey' => 'uid',
+		'options' => 'roles',
+		'item table' => 'users',
+		'per call' => 200,
+		'new per call' => 50,
+	);
+	$ranking_types[3] = array(
+		'name' => 'Exhibition Popularity',
+		'id' => 'exhibitionpop',
+		'content types variable' => 'afo_popularity_exhibitionpop_content_types',
+		'table' => 'afo_popularity_rankings_node',
+		'pkey' => 'nid',
+		'options' => 'content types',
+		'item table' => 'node',
+		'per call' => 10,
+		'new per call' => 10,
+	);
+
+	if(isset($ranking_types[$ranking_type])) return $ranking_types[$ranking_type]; 
+	else return $ranking_types;
+}
+
+/**
+ * Calculate popularity function.
+ */
+function afo_popularity_calculate($nid, $ranking_type = 1) {
+	switch($ranking_type) {
+
+		case 1:
+			/***************************************************** POPULARITY */
+			/**************** lifespan **/
+			$node_created = db_result(db_query('SELECT created FROM {node} WHERE nid = %d', $nid));
+			$node_lifespan = (time() - $node_created) / 60 / 60 / 24; // number of days alive
+			if($node_lifespan < 1) $node_lifespan = 1;
+			
+			/**************** node views **/
+			$node_views = db_result(db_query('SELECT totalcount FROM {node_counter} WHERE nid = %d', $nid));
+		
+			/**************** comments **/
+			$node_comment_statistics = db_fetch_object(db_query('SELECT last_comment_timestamp, comment_count FROM {node_comment_statistics} WHERE nid = %d', $nid));	
+
+			/**************** combine qualities **/
+			// start with base of views divided by lifespan
+			$popularity = $node_views / $node_lifespan;
+			// plus for comments
+			$popularity += $node_comment_statistics->comment_count * 3;
+			// plus for comment within 30 days
+			if($node_comment_statistics->comment_count > 0 && $node_comment_statistics->last_comment_timestamp > time()-(30*24*60*60)) $popularity += 5;
+
+			// multiply up and round
+			$popularity = round($popularity * 100);
+		
+			/**************** node favorite **/
+			if(module_exists('afo_favorite')) {
+				$node_favs = db_result(db_query('SELECT COUNT(uid) FROM {afo_favorite_nodes} WHERE nid = %d', $nid));
+				if(is_numeric($node_favs)) $popularity += $node_favs * 5;
+			}
+			
+			/**************** admin **/
+			//dsm("Node: $nid, Views: $node_views, Life: $node_lifespan, Favs: $node_favs, Popularity: $popularity");
+		
+			// at least 1
+			if($popularity < 1) $popularity = 1;
+		
+			return $popularity;
+		
+		case 2:
+			/***************************************************** ARTIST POPULARITY */
+			// get uid
+			$user_uid = db_result(db_query('SELECT uid FROM {node} WHERE nid = %d', $nid));
+			/**************** user lifespan **/
+			$user_created = db_result(db_query('SELECT created FROM {users} WHERE uid = %d', $user_uid));
+			$user_lifespan = (time() - $user_created) / 60 / 60 / 24; // number of days alive
+			if($user_lifespan < 1) $user_lifespan = 1;
+			
+			/**************** user artworks popularity **/
+			$artworks_popularity = 0;
+			$query = db_query('SELECT pop.ranking_score 
+				FROM {afo_popularity_rankings_node} pop
+				LEFT JOIN {node} n ON pop.nid = n.nid
+				WHERE n.uid = %d',
+				$user_uid);
+			while($row = db_fetch_object($query)) {
+				$artworks_popularity += $row->ranking_score;
+			}
+				
+			/**************** combine qualities **/
+			// start with base of artworks popularity divided by lifespan
+			$popularity = $artworks_popularity / $user_lifespan;
+			
+			// multiply up and round
+			$popularity = round($popularity * 100);
+		
+			/**************** admin **/
+			//dsm("User: $user_uid, Artworks pop: $artworks_popularity, Life: $user_lifespan, Popularity: $popularity");
+		
+			return $popularity;
+			
+
+		case 3:
+			/***************************************************** EXHIBITION POPULARITY */
+			/**************** lifespan **/
+			$node_created = db_result(db_query('SELECT created FROM {node} WHERE nid = %d', $nid));
+			$node_lifespan = (time() - $node_created) / 60 / 60 / 24; // number of days alive
+			if($node_lifespan < 1) $node_lifespan = 1;
+			
+			/**************** node views **/
+			$node_views = db_result(db_query('SELECT totalcount FROM {node_counter} WHERE nid = %d', $nid));
+		
+			/**************** comments **/
+			$node_comment_statistics = db_fetch_object(db_query('SELECT last_comment_timestamp, comment_count FROM {node_comment_statistics} WHERE nid = %d', $nid));	
+		
+			/**************** combine qualities **/
+			// start with base of views divided by lifespan
+			$popularity = $node_views / $node_lifespan;
+			// plus for comments
+			$popularity += $node_comment_statistics->comment_count * 3;
+			// plus for comment within 30 days
+			if($node_comment_statistics->comment_count > 0 && $node_comment_statistics->last_comment_timestamp > time()-(30*24*60*60)) $popularity += 5;
+			
+			// multiply up and round
+			$popularity = round($popularity * 100);
+		
+			/**************** admin **/
+			//dsm("Node: $nid, Views: $node_views, Life: $node_lifespan, Popularity: $popularity");
+		
+			return $popularity;
+			
+	}
+	
+	return NULL;
+}
+
+/**
+ * Implements hook_menu().
+ */
+function afo_popularity_menu() {
+	$items['admin/settings/afo/afo_popularity'] = array(
+		'title' => 'AFO Popularity settings',
+		'description' => 'Admin settings for AFO Popularity module.',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_popularity_admin_settings'),
+		'access arguments' => array('administer site configuration'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_popularity.admin.inc',
+	);
+	$items['admin/settings/afo/afo_popularity/settings'] = array(
+		'title' => 'Settings',
+		'description' => 'Admin settings for AFO Popularity module.',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_popularity_admin_settings'),
+		'access arguments' => array('administer site configuration'),
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'weight' => -10,
+		'file' => 'afo_popularity.admin.inc',
+	);
+	$items['admin/settings/afo/afo_popularity/index'] = array(
+		'title' => 'Index site',
+		'description' => 'Run index function for all popularity-enabled nodes.',
+		'page callback' => 'afo_popularity_admin_index',
+		'access arguments' => array('administer site configuration'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_popularity.admin.inc',
+	);
+	
+	return $items;
+}
+
+/**
+ * Implements hook_schema_alter
+ * Add popularity and created fields to term_node
+ */
+function afo_popularity_schema_alter(&$schema) {
+	$schema['term_node']['fields']['popularity'] = array(
+		'type' => 'int',
+		'unsigned' => TRUE,
+		'not null' => TRUE,
+		'default' => 0,
+		'description' => 'Duplicate of node popularity for optimized queries.',
+	);
+	$schema['term_node']['fields']['created'] = array(
+		'type' => 'int',
+		'unsigned' => TRUE,
+		'not null' => TRUE,
+		'default' => 0,
+		'description' => 'Duplicate of node created for optimized queries.',
+	);
+	$schema['term_node']['indexes']['popularity_created'] = array('popularity', 'created');
+	$schema['term_node']['indexes']['tid_popularity_created'] = array('tid', 'popularity', 'created');
+	$schema['term_node']['indexes']['tid_created'] = array('tid', 'created');
+	$schema['term_node']['indexes']['created_tid'] = array('created', 'tid');
+
+	$schema['term_user']['fields']['popularity'] = array(
+		'type' => 'int',
+		'unsigned' => TRUE,
+		'not null' => TRUE,
+		'default' => 0,
+		'description' => 'Duplicate of user popularity for optimized queries.',
+	);
+	$schema['term_user']['fields']['created'] = array(
+		'type' => 'int',
+		'unsigned' => TRUE,
+		'not null' => TRUE,
+		'default' => 0,
+		'description' => 'Duplicate of user created for optimized queries.',
+	);
+	$schema['term_user']['indexes']['popularity_created'] = array('popularity', 'created');
+	$schema['term_user']['indexes']['tid_popularity_created'] = array('tid', 'popularity', 'created');
+	$schema['term_user']['indexes']['tid_created'] = array('tid', 'created');
+	$schema['term_user']['indexes']['created_tid'] = array('created', 'tid');
+
+	$schema['node']['indexes']['status_type_created_nid'] = array('status', 'type', 'created', 'nid');
+
+/**	
+	$schema['users']['fields']['popularity'] = array(
+		'type' => 'int',
+		'unsigned' => TRUE,
+		'not null' => TRUE,
+		'default' => 0,
+		'description' => 'Duplicate of user popularity ranking for optimized queries.',
+	);
+	$schema['node']['indexes']['tid_created'] = array('tid', 'created');	
+**/
+}
+
+/**
+ * Get popularity from db.
+ */
+function afo_popularity_getscore($val, $ranking_type = 1) {
+
+	$ranking_type_data = afo_popularity_ranking_types($ranking_type);
+	if(!is_array($ranking_type_data)) return false;
+	
+	$table = $ranking_type_data['table'];
+	$pkey = $ranking_type_data['pkey'];
+
+	return db_result(db_query("SELECT ranking_score FROM {$table} WHERE $pkey = %d", $val));
+}
+
+/**
+ * Save popularity to db.
+ */
+function afo_popularity_setscore($ranking_type, $val, $ranking_score) {
+	if(!is_numeric($ranking_type) || !is_numeric($val) || !is_numeric($ranking_score)) return null;
+
+	$ranking_type_data = afo_popularity_ranking_types($ranking_type);
+	if(!is_array($ranking_type_data)) return null;
+	$table = $ranking_type_data['table'];
+
+	// check whether node already has score entry
+	$currentScore = afo_popularity_getscore($val, $ranking_type);
+	if(is_numeric($currentScore)) $primary_keys = array($ranking_type_data['pkey']);
+
+	$record = new stdClass();
+	if($ranking_type_data['item table'] == 'node') 		$record->nid = $val;
+	elseif($ranking_type_data['item table'] == 'users') $record->uid = $val;
+	$record->ranking_score = $ranking_score;
+	$record->updated = time();
+
+	// if primary keys array present, update record
+	if(is_array($primary_keys)) drupal_write_record($table, $record, $primary_keys);
+	// otherwise, insert new record
+	else drupal_write_record($table, $record);
+		
+	// add score to term node records
+	if($ranking_type_data['item table'] == 'users') {
+		$created = db_result(db_query('SELECT created FROM users WHERE uid = %d', $val));
+		$result = db_query('UPDATE {term_user} SET popularity = %d, created = %d WHERE uid = %d', $ranking_score, $created, $val);
+	} else {
+		$created = db_result(db_query('SELECT created FROM node WHERE nid = %d', $val));
+		$result = db_query('UPDATE {term_node} SET popularity = %d, created = %d WHERE nid = %d', $ranking_score, $created, $val);
+	}
+	
+}
+
+/**
+ * Remove score from db.
+ */
+function afo_popularity_deletescore($val, $op) {
+	if(!is_numeric($val)) return false;
+	
+	switch($op) {
+		case 'node':
+			$table = 'afo_popularity_rankings_node';
+			$valfield = 'nid';
+			break;
+		case 'user':
+			$table = 'afo_popularity_rankings_user';
+			$valfield = 'uid';
+			break;
+	}
+	
+	if($table && $valfield) return db_query("DELETE FROM {$table} WHERE $valfield = %d", $val);
+	else return false;
+}
+
+/**
+ * Return array of content types for ranking
+ */
+function afo_popularity_gettypes($ranking_type = 1) {
+	if($ranking_type == 0) {
+		// return content types for all ranking types
+		$ranking_types = afo_popularity_ranking_types(0);
+		$return_types = array();
+		foreach($ranking_types as $k => $t) {
+			$addTypes = afo_popularity_gettypes($k);
+			foreach($addTypes as $typename) {
+				if(strlen($typename) > 1) $return_types[] = $typename;
+			}
+		}
+		return $return_types;
+	}
+	else {
+		// return content types for single ranking type
+		$ranking_type_data = afo_popularity_ranking_types($ranking_type);
+		$varname = $ranking_type_data['content types variable']; 
+		return variable_get($varname, array());
+	}
+}
+
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function afo_popularity_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+	$ranked_types = afo_popularity_gettypes(0);
+	if(in_array($node->type, $ranked_types)) {
+		// node is potential ranked content type
+		switch($op) {
+			case 'delete':
+				// delete scores from db
+				afo_popularity_deletescore($node->nid, 'node');
+				break;
+		}
+	}
+}	
+
+/**
+ * Implementation of hook_user.
+ */
+function afo_popularity_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+		case 'delete':
+			// remove user popularity record
+			if(is_numeric($account->uid)) {
+				// remove featured users
+				db_query('DELETE FROM {afo_popularity_rankings_user} WHERE uid = %d', $account->uid);
+			}
+			break;
+	}
+}
+
+
+/**
+ * Implementation of hook_action_info().
+ */
+function afo_popularity_action_info() {
+	$info['afo_popularity_index_site_action'] = array(
+		'type' => 'system',
+		'description' => t('Calculate and save popularity rankings for entire site.'),
+		'configurable' => FALSE,
+		'hooks' => array(
+			'any' => TRUE,
+		),
+	);
+
+	return $info;
+}
+
+/**
+ * Index site action
+ */
+function afo_popularity_index_site_action() {
+	afo_popularity_index_site();
+}
+
+/**
+ * Index site function
+ * Calculates and saves rankings for every node on the site that is available for popularity ranking.
+ */
+function afo_popularity_index_site() {
+
+	$ranking_types = afo_popularity_ranking_types();
+	
+	foreach($ranking_types as $ranking_key => $ranking_type) {
+		
+		// get types of node or user to index
+		$types = afo_popularity_gettypes($ranking_key);
+	
+		if(count($types) > 0) {
+		
+			$per_call = $ranking_type['per call'] > 0 ? $ranking_type['per call'] : 100;
+		
+			// query to get nodes
+			if($ranking_type['item table'] == 'node') {
+				// where by content type
+				$typesClause = array();
+				foreach($types as $typename) {
+					if($typename !== 0) $typesClause[] = "n.type = '%s'";
+				}
+				if(count($typesClause) > 0) {
+					$typesClause = implode(' OR ', $typesClause);
+					// node query
+					$query = db_query_range("SELECT n.nid AS val 
+					FROM {afo_popularity_rankings_node} afo_popularity_rankings
+					LEFT JOIN {node} n ON afo_popularity_rankings.nid = n.nid
+					WHERE ($typesClause) AND n.status = 1 
+					ORDER BY afo_popularity_rankings.updated ASC", $types, 0, $per_call);
+					
+					if(is_numeric($ranking_type['new per call'])) {
+						$add_new_query = db_query_range("SELECT n.nid AS val 
+						FROM {node} n
+						LEFT JOIN {afo_popularity_rankings_node} afo_popularity_rankings ON afo_popularity_rankings.nid = n.nid
+						WHERE ($typesClause) AND n.status = 1 AND afo_popularity_rankings.ranking_score IS NULL", $types, 0, $ranking_type['new per call']);
+					}
+				}
+			}
+
+			// query to get users
+			elseif($ranking_type['item table'] == 'users') {
+				// where by roles
+				$typesClause = array();
+				foreach($types as $typename) {
+					$typesClause[] = 'r.rid = %d';
+				}
+
+				if(count($typesClause) > 0) {
+					$typesClause = implode(' OR ', $typesClause);
+					// user query			
+					$query = db_query_range("SELECT u.uid AS val 
+					FROM {afo_popularity_rankings_user} afo_popularity_rankings
+					LEFT JOIN {users} u ON afo_popularity_rankings.uid = u.uid
+					LEFT JOIN {users_roles} r ON u.uid = r.uid
+					WHERE ($typesClause) AND u.status = 1 
+					ORDER BY afo_popularity_rankings.updated ASC", $types, 0, $per_call);
+					
+					if(is_numeric($ranking_type['new per call'])) {
+						$add_new_query = db_query_range("SELECT u.uid AS val 
+						FROM {users} u
+						LEFT JOIN {afo_popularity_rankings_user} afo_popularity_rankings ON afo_popularity_rankings.uid = u.uid
+						LEFT JOIN {users_roles} r ON u.uid = r.uid
+						WHERE ($typesClause) AND u.status = 1 AND afo_popularity_rankings.ranking_score IS NULL", $types, 0, $ranking_type['new per call']);
+					}				
+				}
+
+			}
+
+			if($query) {
+				while($row = db_fetch_object($query)) {
+					$score = afo_popularity_calculate($row->val, $ranking_key);
+					afo_popularity_setscore($ranking_key, $row->val, $score);
+				}
+			}
+
+			if($add_new_query) {
+				while($row = db_fetch_object($add_new_query)) {
+					$score = afo_popularity_calculate($row->val, $ranking_key);
+					afo_popularity_setscore($ranking_key, $row->val, $score);
+				}
+			}
+			
+			drupal_set_message(t("Batch of site {$ranking_type[name]} scores indexed."));
+		}
+	}
+}
+
+
+/**
+ * Implementation of hook_views_data()
+ */
+function afo_popularity_views_data() {
+
+	// Define the base group of this table. Fields that don't
+	// have a group defined will go into this field by default.
+	$data['afo_popularity_rankings']['table']['group']  = t('AFO Popularity Rankings');
+
+	
+	// For other base tables, explain how we join
+	$data['afo_popularity_rankings']['table']['join'] = array(
+		// Directly links to node table.
+		'node' => array(
+			'left_field' => 'nid',
+			'field' => 'nid',
+			),
+	);
+
+	// popularity value
+	$data['afo_popularity_rankings']['ranking_score'] = array(
+		'title' => t('AFO Popularity Score'), // The item it appears as on the UI,
+		'help' => t('Score generated by AFO Popularity module.'), // The help that appears on the UI,
+		// Information for displaying a title as a field
+		'field' => array(
+			'field' => 'ranking_score', // the real field. This could be left out since it is the same.
+			'group' => t('AFO Popularity'), // The group it appears in on the UI. Could be left out.
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		// Information for accepting a title as a filter
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+	// ranking type
+	$data['afo_popularity_rankings']['ranking_type'] = array(
+		'title' => t('AFO Popularity Ranking Type'), // The item it appears as on the UI,
+		'help' => t('ID to distinguish the type of popularity ranking.'), // The help that appears on the UI,
+		// Information for displaying a title as a field
+		'field' => array(
+			'field' => 'ranking_type', // the real field. This could be left out since it is the same.
+			'group' => t('AFO Popularity'), // The group it appears in on the UI. Could be left out.
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		// Information for accepting a title as a filter
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+    
+	return $data;
+	
+}

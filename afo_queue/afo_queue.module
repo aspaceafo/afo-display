@@ -1,0 +1,307 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Queue functions.
+ */
+ 
+/******************************************* drupal functions **/
+
+/**
+ * Implementation of hook_menu().
+ */
+function afo_queue_menu() {
+	$items['queue'] = array(
+		'title' => 'Your Viewing Queue',
+		'description' => 'See all items you\'ve saved to your viewing queue',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_queue_page'),
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_queue.page.inc',
+	);
+
+	$items['queue/build'] = array(
+		'page callback' => 'afo_queue_ajax_build',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+	);
+
+	$items['queue/edit'] = array(
+		'page callback' => 'afo_queue_ajax_edit',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+	);
+
+	$items['queue/op'] = array(
+		'page callback' => 'afo_queue_ajax_op',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+	);
+	
+	return $items;
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_queue_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = t('afo_queue: Viewing Queue');
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+			return $blocks;
+			
+		case 'view':
+			$block['subject'] = null;
+			$block['content'] = afo_queue_build_queue();
+			return $block;
+	}
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function afo_queue_theme() {
+  return array(
+    'afo_queue_item' => array(
+      'arguments' => array(
+        'item' => NULL,
+      ),
+    ),
+    'afo_queue' => array(
+      'arguments' => array(
+        'items' => NULL,
+        'options' => NULL,
+      ),
+    ),
+  );
+}
+
+
+/******************************************* data functions **/
+
+/**
+ * Save to queue
+ */
+function afo_queue_edit_item($item, $order = 0, $op = 'add') {
+	if(!is_array($item)) return false;
+	if(!is_numeric($item['id'])) return false;
+	if(!isset($item['type'])) $item['type'] = 'node';
+
+	$queue = is_array($_SESSION['afo_queue']) ? $_SESSION['afo_queue'] : array();
+	
+	foreach($queue as $k => $i) {
+		if($i['id'] == $item['id'] && $i['type'] == $item['type']) unset($queue[$k]);
+	}
+	
+	if($op == 'add') {
+		if($order > 0) array_splice($queue, $order, 0, array($item));
+		else array_unshift($queue, $item);
+	}
+	
+	$_SESSION['afo_queue'] = $queue;
+}
+
+/******************************************* ajax functions **/
+
+/**
+ * build queue and send to js
+ */
+function afo_queue_ajax_op() {
+	$op = $_POST['op'];
+	$value = $_POST['value'];
+	switch($op) {
+		case 'open':
+			$_SESSION['afo_queue_open'] = $value;
+			break;
+	}
+}
+
+/**
+ * build queue and send to js
+ */
+function afo_queue_ajax_build() {
+	drupal_json(array(
+		'queue' => afo_queue_build_queue(array('no wrapper' => true)),
+		'count' => afo_queue_count(),
+	));	
+}
+
+/**
+ * edit queue and return js
+ */
+function afo_queue_ajax_edit() {
+
+	$type = $_POST['type'];
+	$id = $_POST['id'];
+	$op = $_POST['op'];
+
+	$result = false;
+
+	if(is_numeric($id)) {
+		switch($op) {
+			case 'add':
+				afo_queue_edit_item(array('id'=>$id, 'type'=>$type));
+				$result = true;
+				break;
+
+			case 'remove':
+				afo_queue_edit_item(array('id'=>$id, 'type'=>$type), null, 'remove');
+				$result = true;
+				break;
+				
+			case 'clear':
+				unset($_SESSION['afo_queue']);
+				$result = true;
+				break;
+		}
+	}
+
+	drupal_json(array(
+		'result' => $result,
+		'queue' => afo_queue_build_queue(array('no wrapper' => true)),
+		'count' => afo_queue_count(),
+	));	
+}
+
+/******************************************* display functions **/
+
+/**
+ * Compile queue.
+ */
+function afo_queue_build_queue($options = array()) {
+	$queue = $_SESSION['afo_queue'];
+
+	if(!is_array($queue) || count($queue) === 0) {
+		$queue_content = t('Your viewing queue is empty.');
+		if($options['data only']) return $queue_content;
+		if(!$options['page view']) $queue_content .= t(' Drag images here to add them to your queue.');
+		$queue_inner_class = 'empty';
+		$queue_count = t('empty');
+	} 
+	else {
+		if($options['data only']) return $queue;
+		$queue_content .= theme('afo_queue', $queue, $options);
+		$queue_count = count($queue);
+	}
+	
+	if(!$options['no wrapper']) {
+		if($_SESSION['afo_queue_open'] == 'no' || arg(0) == 'queue') $box_class = 'closed';
+
+		// button
+		$content .= '<div id="afo-queue-button">';
+		$content .= '<span class="secondaryText">&#62;&#62;&#62;' . t(' drag images here to add ') . '&#60;&#60;&#60;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>';
+		$content .= '<a href="#" class="afo-queue-toggle">';
+		$content .= t('Your Viewing Queue');
+		$content .= ' (<span class="queue-count">' . $queue_count . '</span>)';
+		$content .= '</a>';
+		$content .= '<span class="secondaryText">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&#60;&#60;&#60;' . t(' click to open ') . '&#62;&#62;&#62;</span>';
+		$content .= '</div>';
+		
+		// queue box
+		$content .= '<div id="afo-queue-box" class="' . $box_class .'"><div id="afo-queue-box-inner">';
+		$content .= '<div class="afo-queue-scroll afo-queue-scroll-left">'.theme('afo_display_icon', 'scroll left').'</div>';
+		
+		// controls
+		$content .= '<div id="afo-queue-controls"><div id="afo-queue-controls-inner">';
+		$content .= '<a href="#" class="afo-queue-toggle">' . t('hide') . '</a><br />';
+		$content .= l(t('save'), 'queue') . '<br />';
+		$content .= '<a href="#" class="afo-queue-clear">' . t('clear') . '</a>';
+		$content .= '</div></div>';
+		
+		// start queue
+		$content .= '<div id="afo-queue">';
+	}
+	
+	$content .= '<div id="afo-queue-inner" class="'.$queue_inner_class.'">';
+	$content .= $queue_content;
+	$content .= '</div>';
+	
+	if(!$options['no wrapper']) {
+		$content .= '</div>';
+		$content .= '<div class="afo-queue-scroll afo-queue-scroll-right">'.theme('afo_display_icon', 'scroll right').'</div>';
+		$content .= '</div></div>'; // close queue-box-inner, queue-box
+	}
+	
+	if(!$options['no wrapper']) {
+		jquery_ui_add(array('ui.draggable', 'ui.droppable', 'ui.sortable'));
+		drupal_add_js(drupal_get_path('module', 'afo_queue').'/afo_queue.js');
+	}
+	
+	return $content;
+}
+
+/**
+ * Theme queue
+ */
+function theme_afo_queue($items, $options = array()) {
+	if(!is_array($items)) return null;
+
+	if($options['page view']) {
+		foreach($items as $i) {
+			$content .= '<div class="afo-queue-item">';
+			$content .= theme('afo_queue_item', $i);
+			$content .= '</div>';
+		}	
+	}
+	else {
+		$content .= '<table class="afo-queue-table" border="0">';
+		$content .= '<tr>';
+		foreach($items as $i) {
+			$content .= '<td>';
+			$content .= theme('afo_queue_item', $i);
+			$content .= '</td>';
+		}
+		$content .= '</tr>';
+		$content .= '</table>';
+	}
+	
+	return $content;
+}
+
+/**
+ * Theme queue item
+ */
+function theme_afo_queue_item($item) {
+	if(!is_array($item)) return null;
+
+	switch($item['type']) {
+		case 'user':
+			$content = theme('afo_display_user_thumbnail', $item['id'], null, 'user/'.$item['id']);
+			break;
+			
+		case 'node':
+			$content = theme('afo_display_node_thumbnail', $item['id'], null, 'node/'.$item['id']);
+			break;
+	}
+
+	return $content;
+}
+
+/******************************************* helper functions **/
+
+/**
+ * Call queue page submit
+ */
+function afo_queue_page_submit($form, &$form_state) {
+	module_load_include('inc', 'afo_queue', 'afo_queue.page');
+	_afo_queue_page_submit($form, $form_state);
+}
+
+/**
+ * Return queue count.
+ */
+function afo_queue_count() {
+	return count($_SESSION['afo_queue']);
+}
+
+/**
+ * Return queueable item classes with data
+ */
+function afo_queue_queueable_classes($id, $type='node') {
+	return "queueable queue-$type-$id";
+}

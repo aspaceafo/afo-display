@@ -1,0 +1,141 @@
+<?php
+// $Id$
+
+function afo_cv_install() {
+	drupal_install_schema('afo_cv');
+}
+
+function afo_cv_uninstall() {
+	drupal_uninstall_schema('afo_cv');
+}
+
+function afo_cv_schema() {
+	$schema['afo_cv_entries'] = array(
+		'description' => t('Stores CV entry data.'),
+		'fields' => array(
+			'entryid' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('Primary key ID field for show record.'),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The {user}.uid of the user.'),
+			),
+			'details' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Details field.'),
+			),
+			'year' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'size' => 'small',
+				'not null' => FALSE,
+				'description' => t('Year field.'),
+			),
+			'url' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Link URL.'),
+			),
+			'venueid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('The id of the venue.'),
+			),
+			'typeid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The id of the CV entry type.'),
+			),
+		),
+		'primary key' => array('entryid'),
+		'indexes' => array('uid'=>array('uid'), 'typeid'=>array('typeid')),
+	);
+
+	$schema['afo_cv_venues'] = array(
+		'description' => t('Stores venue or institution data for CV entries.'),
+		'fields' => array(
+			'venueid' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('Primary key ID field for venue record.'),
+			),
+			'name' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('The name of the venue.')
+			),
+		),
+		'primary key' => array('venueid'),
+		'indexes' => array('venueid'=>array('venueid'), 'name'=>array('name')),
+	);
+	
+	$schema['afo_cv_text'] = array(
+		'description' => t('Single text field CV.'),
+		'fields' => array(
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The {user}.uid of the user.'),
+			),
+			'body' => array(
+				'type' => 'text',
+				'size' => 'big',
+				'not null' => FALSE,
+				'description' => t('The CV text body.')
+			),
+		),
+		'primary key' => array('uid'),
+		'indexes' => array('uid'=>array('uid')),
+	);
+	
+	return $schema;
+	
+}
+
+/**
+ * Update function
+ * add afo_cv_text table
+ */
+function afo_cv_update_6000() {
+	$ret = array();
+	
+	$table_schema = array(
+		'description' => t('Single text field CV.'),
+		'fields' => array(
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The {user}.uid of the user.'),
+			),
+			'body' => array(
+				'type' => 'text',
+				'size' => 'big',
+				'not null' => FALSE,
+				'description' => t('The CV text body.')
+			),
+		),
+		'primary key' => array('uid'),
+		'indexes' => array('uid'=>array('uid')),
+	);
+	
+	db_create_table($ret, 'afo_cv_text', $table_schema);
+	return $ret;
+}

@@ -1,0 +1,353 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Adds custom functionality for history viewing on AFO site.
+ */
+ 
+/**
+ * Implementation of hook_menu().
+ */
+function afo_history_menu() {
+	$items['admin/settings/afo/history'] = array(
+		'title' => 'AFO History Settings',
+		'description' => 'Admin settings for AFO Open Call module',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_history_admin_settings'),
+		'file' => 'afo_history.admin.inc',
+		'access arguments' => array('administer content'),
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	$items['viewing-history'] = array(
+		'title' => 'Viewing history',
+		'description' => 'See which artists you have recently viewed',
+		'page callback' => 'afo_history_page',
+		'access callback' => TRUE,
+		'type' => MENU_NORMAL_ITEM,
+	);
+	
+	$items['afo_history/remove'] = array(
+		'page callback' => 'afo_history_remove',
+		'access callback' => TRUE,
+		'type' => MENU_CALLBACK,
+	);
+	
+	return $items;
+}
+
+/**
+ * Implementation of hook_init.
+ */
+function afo_history_init() {
+	drupal_add_js(drupal_get_path('module', 'afo_history').'/afo_history.js');
+	drupal_add_css(drupal_get_path('module', 'afo_history').'/afo_history.css');
+}
+
+
+/******************************** INPUT **/
+
+/**
+ * Record history record in SESSION.
+ */
+function afo_history_record($obj, $type='node') {
+	
+	switch($type) {
+	
+		case 'node':
+			if(is_object($obj)) {
+				$data = array(
+					'type' => $obj->type,
+					'nid' => $obj->nid,
+					'uid' => $obj->uid,
+					'name' => $obj->name,
+					'url' => 'node/'.$obj->nid,
+				);
+			}
+			break;
+		
+		case 'user':
+			if(is_object($obj)) {
+				$data = array(
+					'type' => 'user',
+					'uid' => $obj->uid,
+					'name' => $obj->name,
+					'url' => 'user/'.$obj->uid,
+				);
+			}		
+			break;
+			
+	}
+	
+	if(is_array($data)) {
+
+		// create array if not set
+		if(!isset($_SESSION['afo_history'])) $_SESSION['afo_history'] = array();
+	
+		else {
+		
+			// check if item already in history
+			$history = afo_history_get();
+			foreach($history as $key => $h) {
+				$del = false;
+				if($h['type'] == $data['type']) {
+					if($type == 'node' && $h['nid'] == $data['nid']) $del = true;
+					elseif($type == 'user' && $h['uid'] == $data['uid']) $del = true;
+					
+					// if same item already in history, delete
+					if($del) afo_history_delete($key);
+				}
+			}
+		}
+		
+		$data['timestamp'] = time();
+		array_unshift($_SESSION['afo_history'], $data);
+	}
+	
+}
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function afo_history_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+
+	// use load, not view
+	if($op == 'load') {
+		$record_types = variable_get('afo_history_record_types', array());
+		if($record_types[$node->type] === $node->type) {
+			afo_history_record($node, 'node');
+		}
+	}
+}
+
+/**
+ * Implementation of hook_user
+ */
+function afo_history_user($op, &$edit, &$account, $category = NULL) {
+	// if user is being viewed, record if right type
+	if($op == 'view') {
+		//$record_roles = variable_get('afo_history_record_roles', array());
+		afo_history_record($account, 'user');
+	}
+}
+
+/******************************** OUTPUT **/
+
+/**
+ * Returns history array.
+ */
+function afo_history_get() {
+	return $_SESSION['afo_history'];
+}
+
+
+/******************************** DISPLAY **/
+
+/**
+ * Full history page display
+ */
+function afo_history_page() {
+	$history = afo_history_get();
+	dsm($history);
+	return theme('afo_history_viewing_history', $history, 0);
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_history_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = 'afo_history: User History';
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+			return $blocks;
+			
+		case 'view':
+			switch($delta) {
+
+				// browse open calls block
+				case 0:
+					$history = afo_history_get();
+					if(is_array($history)) {
+						$block['subject'] = t('Viewing History');
+						$block['content'] = theme('afo_history_viewing_history', $history);
+						return $block;
+					}
+					return FALSE;
+					
+			}
+			break;
+	}
+}
+
+/**
+ * Output themed viewing history.
+ */
+function theme_afo_history_viewing_history($history, $display_total=null) {
+	if(is_array($history)) {
+
+		$output .= '<div class="viewing-history">';
+
+		// get setting	
+		if($display_total===null) $display_total = variable_get('afo_history_block_total', 6);
+		// if passed 0, show all
+		if($display_total==0) $display_total = count($history);
+	
+		$key = 0;
+		$displayed = 0;
+
+
+		if(arg(0)=='node') {
+			// check if current node is first item
+			if($history[0]['nid'] == arg(1)) {
+				unset($history[0]);
+			}
+		}
+		elseif(arg(0)=='user') {
+			// check if current user is first term
+			if($history[0]['type']=='user' && $history[0]['uid']==arg(1)) {
+				unset($history[0]);
+			}
+		}
+		
+		while($displayed < $display_total) {
+		
+			if($displayed == count($history)) break;
+			
+			if(is_array($history[$key])) {
+				// data present, show item
+				$h = $history[$key];
+
+				if($h) {
+					$output .= "<div id='item-$key' class='item'>";
+
+					// links
+					$output .= '<div class="imageButtons">';
+					if(module_exists('afo_favorite')) {
+						$favbutton = afo_favorite_favbutton('node', $h['nid']);
+						if($favbutton) $output .= "<div class='favbutton'>$favbutton</div>";
+					}
+					$output .= '<div class="removelink">'.afo_history_removelink($key).'</div>';
+					$output .= '</div>';
+
+					$output .= '<div class="item-display">';
+
+					switch($h['type']) {
+					
+						case 'artwork':
+							$output .= theme('afo_display_node_thumbnail', $h['nid'], null, 'node/'.$h['nid']);
+							break;
+
+						case 'open_call':
+							$output .= '<div class="item-type-label"><div class="item-type-label-inner">'.t('Open Call').'</div></div>';
+							$output .= theme('afo_display_node_thumbnail', $h['nid'], null, 'node/'.$h['nid']);
+							break;
+
+						case 'exhibition':
+							$output .= '<div class="item-type-label"><div class="item-type-label-inner">'.t('Exhibition').'</div></div>';
+							$output .= theme('afo_display_node_thumbnail', $h['nid'], null, 'node/'.$h['nid']);
+							break;
+
+						case 'event':
+							$output .= '<div class="item-type-label"><div class="item-type-label-inner">'.t('Event').'</div></div>';
+							$output .= theme('afo_display_node_thumbnail', $h['nid'], null, 'node/'.$h['nid']);
+							break;
+					
+						case 'user':
+							if($h['uid']) {
+								$output .= '<div class="item-type-label"><div class="item-type-label-inner">'.$h['name'].'</div></div>';
+								$output .= theme('afo_display_user_thumbnail', $h['uid'], null, 'user/'.$h['uid']);
+								$output .= '<br />';
+							}
+							break;
+					}
+
+					$output .= '</div>';										
+					$output .= '</div>';
+
+				}
+				$displayed++;
+			}
+			
+			$key++;
+		}
+
+		$output .= '<div class="horiz-clear">&nbsp;</div>';
+		$output .= '<div class="options"><ul>';
+		$output .= '<li class="history-see-all">'.l(t('See all'), 'viewing-history').'</li>';
+		$output .= '<li class="history-clear">'.afo_history_removelink('all', 'Clear history').'</li>';
+		$output .= '</ul></div>';
+		$output .= '</div>';
+	
+	}
+
+	return $output;
+}
+
+/**
+ * Output remove link.
+ */
+function afo_history_removelink($key, $text=null) {
+	if(!$text) {
+		global $base_path; 
+		$images_folder = $base_path.drupal_get_path('module', 'afo_display').'/images';
+		$text = "<img src='$images_folder/X.png' title='Remove' alt='Remove' />";
+	}	
+	else $text = t($text);
+
+	$url = 'afo_history/remove/'.$key;
+
+	return l($text, $url, array('attributes'=>array('class'=>'afo-history-remove'), 'html'=>true));
+}
+
+
+/**
+ * Implementation of hook_theme().
+ * Initialize module's themable functions.
+ */
+function afo_history_theme() {
+  return array(
+    'afo_history_viewing_history' => array(
+      'arguments' => array(
+        'history' => NULL,
+      ),
+    ),
+  );
+}
+
+
+/******************************** FUNCTIONS **/
+
+/**
+ * JSON call: remove record or clear all.
+ */
+function afo_history_remove($key) {
+
+	afo_history_delete($key);
+
+	if(!empty($_POST['js'])) {
+		// jQuery call, send back JSON	
+		drupal_json($key);
+		exit();
+	}
+	
+	drupal_goto(referer_uri());
+}
+
+/**
+ * Delete history item.
+ */
+function afo_history_delete($key) {
+
+	if($key==='all') {
+		$_SESSION['afo_history'] = array();
+	}
+	
+	else if ($_SESSION['afo_history'][$key]) {
+		unset($_SESSION['afo_history'][$key]);
+	}
+	
+}

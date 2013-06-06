@@ -1,0 +1,138 @@
+<?php
+// $Id$
+
+function afo_opencall_install() {
+	drupal_install_schema('afo_opencall');
+}
+
+function afo_opencall_uninstall() {
+	drupal_uninstall_schema('afo_opencall');
+}
+
+function afo_opencall_schema() {
+	$schema['afo_opencall_calls'] = array(
+		'description' => t('Stores call data extra fields.'),
+		'fields' => array(
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The call {node}.nid.'),
+			),
+			'deadline' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Call deadline - timestamp.'),
+			),
+			'submitlimit' => array(
+				'type' => 'int',
+				'not null' => false,
+				'description' => t('Limit number of artworks users can submit.'),
+			),
+		),
+		'primary key' => array(
+			'nid'
+		),
+		'indexes' => array(
+			'deadline' => array('deadline'),
+		),
+	);
+
+	$schema['afo_opencall_submissions'] = array(
+		'description' => t('Stores call submissions.'),
+		'fields' => array(
+			'submission_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'size' =>  'normal',
+				'description' => t('The submission id.')
+			),				
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The open call {node}.nid.')
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The submitting user {user}.uid.')
+			),
+			'note' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Note accompanying the submission.')
+			),
+			'curator_seen' => array(
+				'type' => 'int',
+				'size' => 'tiny',
+				'not null' => true,
+				'default' => 0,
+				'description' => t('Curator ignore submission option.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.')
+			),
+		),
+		'primary key' => array(
+			'submission_id'
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'nid' => array('nid'),
+		),
+	);
+
+	$schema['afo_opencall_submissions_artworks'] = array(
+		'description' => t('Artworks selected for submission.'),
+		'fields' => array(
+			'submission_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The submission id.')
+			),				
+			'artwork_nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The artwork {node}.nid.')
+			),
+		),
+		'primary key' => array(
+			'submission_id', 'artwork_nid'
+		),
+	);
+	
+	return $schema;
+	
+}
+
+/**
+ * Add ignore field to submissions table
+ */
+function afo_opencall_update_6000() {
+	$ret = array();
+	db_add_field(&$ret, 'afo_opencall_submissions', 'ignore', array('type' => 'int', 'size' => 'tiny', 'not null' => false, 'description' => t('Curator ignore submission option.')));
+	return $ret;
+}
+/**
+ * Alter ignore field in submissions table
+ */
+function afo_opencall_update_6001() {
+	$ret = array();
+	db_change_field(&$ret, 'afo_opencall_submissions', 'ignore', 'curator_seen', array('type' => 'int', 'size' => 'tiny', 'not null' => true, 'default' => 0, 'description' => t('Curator ignore submission option.')));
+	return $ret;
+}

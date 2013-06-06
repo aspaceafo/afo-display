@@ -1,0 +1,5 @@
+; $Id$
+name = AFO Back End
+description = Modifies AFO back end forms and functions.
+core = 6.x
+package = AFO Custom

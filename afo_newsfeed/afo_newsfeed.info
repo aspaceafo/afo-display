@@ -1,0 +1,6 @@
+; $Id$
+name = AFO Newsfeed
+description = Tracks and outputs user events.
+core = 6.x
+package = AFO Custom
+dependecies[] = afo_display

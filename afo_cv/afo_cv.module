@@ -1,0 +1,586 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Adds custom functionality to artist CVs.
+ */
+
+/**
+ * Setup function: return array of show types.
+ */
+function afo_cv_entrytypes($op='full') {
+	$entry_types = array(
+		0 => array('single'=>'Solo Show', 'multiple'=>'Solo Shows', 'browse op'=>'galleries'),
+		1 => array('single'=>'Group Show', 'multiple'=>'Group Shows', 'browse op'=>'galleries'),
+		2 => array('single'=>'Education/Residency', 'multiple'=>'Education and Residencies', 'browse op'=>'schools'),
+		3 => array('single'=>'Honors/Awards/Grants', 'multiple'=>'Honors, Awards, and Grants'),
+		4 => array('single'=>'Publications/Press', 'multiple'=>'Publications and Press'),
+//		4 => array('single'=>'Bibliography', 'multiple'=>'Bibliography'),
+		5 => array('single'=>'Other Project', 'multiple'=>'Other Projects'),
+		6 => array('single'=>'Collection', 'multiple'=>'Collections'),
+	);
+	
+	if($op=='full') return $entry_types;
+	
+	elseif($op=='select') {
+		// return options array for SELECT element
+		foreach($entry_types as $key => $type) {
+			$select_options[$key] = $type['single'];
+		}
+		return $select_options;
+	}
+}
+
+ /**
+ * Implementation of hook_menu().
+ */
+function afo_cv_menu() {
+	$items['admin/settings/afo/afo_cv'] = array(
+		'title' => 'AFO CV Settings',
+		'page callback' => drupal_get_form,
+		'page arguments' => array('afo_cv_admin_settings'),
+		'file' => 'afo_cv.admin.inc',
+		'access arguments' => array('administer site settings'),
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	$items['user/%user_uid_optional/cv'] = array(
+		'title' => 'CV',
+		'title callback' => 'afo_cv_page_title',
+		'title arguments' => array(1),
+		'page callback' => 'afo_cv_view',
+		'page arguments' => array(1),
+		'access arguments' => array('view cv'),
+		'type' => MENU_NORMAL_ITEM,
+		'weight' => 5,
+		'file' => 'afo_cv.display.inc',
+	);
+	
+	$items['user/%user_uid_optional/cv/edit'] = array(
+		'title' => 'Edit CV',
+		'page callback' => 'afo_cv_view',
+		'page arguments' => array(1, 'edit'),
+		'access callback' => 'afo_cv_access',
+		'access arguments' => array(1), // send wildcard as argument
+		'type' => MENU_LOCAL_TASK,
+		'weight' => 5,
+		'file' => 'afo_cv.display.inc',
+	);
+	
+	$items['afo-cv/autocomplete/venue'] = array(
+		'title' => 'Venue autocomplete',
+		'page callback' => 'afo_cv_venue_autocomplete',
+		'access callback' => 'user_access',
+		'access arguments' => array('access content'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_cv.admin.inc',
+	);
+	
+	$items['afo-cv/edit-entry-form'] = array(
+		'page callback' => 'afo_cv_edit_entry',
+		'access callback' => TRUE,
+		'type' => MENU_CALLBACK,
+	);
+
+	$items['browse/cv/index'] = array(
+		'title' => 'CV Index',
+		'description' => 'Browse through galleries and schools included on artist\'s CVs',
+		'page callback' => 'afo_cv_indexpage',
+		'access callback' => 'user_access',
+		'access arguments' => array('access content'),
+		'type' => MENU_NORMAL_ITEM,
+		'file' => 'afo_cv_index.inc',
+	);
+	$items['browse/cv/index/all'] = array(
+		'title' => 'All',
+		'page callback' => 'afo_cv_indexpage',
+		'page arguments' => array('all'),
+		'access callback' => 'user_access',
+		'access arguments' => array('access content'),
+		'type' => MENU_DEFAULT_LOCAL_TASK,
+		'file' => 'afo_cv_index.inc',
+	);
+	$items['browse/cv/index/galleries'] = array(
+		'title' => 'Galleries',
+		'page callback' => 'afo_cv_indexpage',
+		'page arguments' => array('galleries'),
+		'access callback' => 'user_access',
+		'access arguments' => array('access content'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_cv_index.inc',
+	);
+	$items['browse/cv/index/schools'] = array(
+		'title' => 'Schools',
+		'page callback' => 'afo_cv_indexpage',
+		'page arguments' => array('schools'),
+		'access callback' => 'user_access',
+		'access arguments' => array('access content'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_cv_index.inc',
+	);
+	
+	return $items;
+}
+
+/**
+ * Implementation of hook_perm.
+ */
+function afo_cv_perm() {
+	return array('view cv', 'edit own cv', 'edit any cv');
+}
+
+/**
+ * Implementation of hook_user.
+ */
+function afo_cv_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+		case 'delete':
+			// remove user's CV records
+			if(is_numeric($account->uid)) {
+				// delete from cv_entries
+				db_query('DELETE FROM {afo_cv_entries} WHERE uid = %d', $account->uid);
+				// delete from cv_text
+				db_query('DELETE FROM {afo_cv_text} WHERE uid = %d', $account->uid);
+			}
+			break;
+	}
+}
+
+/**
+ * Test CV edit access
+ */
+function afo_cv_access($uid) {
+	if(is_object($uid)) $uid = $uid->uid; // if user object, convert to uid
+
+	if(user_access('edit any cv')) return true;
+	else if(is_numeric($uid)) {
+		global $user;
+		if(user_access('edit own cv') && ($user->uid == $uid || $uid == 'me')) return true;
+	}
+	return false;
+}
+
+
+/**
+ * Title callback for CV page.
+ */
+function afo_cv_page_title($user) {
+	return $user->name.' » '.t('CV');
+}
+
+/**
+ * Button to add new CV entry.
+ */
+function afo_cv_editbutton($entryid=0) {
+	if($entryid==0) {
+		// add new
+		$link_text = t('Add new entry');
+	} 
+	else {
+		// edit existing
+		$link_text = t('edit');
+	}
+	
+	$link = "<a href='#' onclick=\"javascript:afo_cv_edit($entryid); return null;\">$link_text</a>";
+	
+	return $link;
+}
+
+function afo_cv_edit_entry($entryid) {
+	print drupal_get_form('afo_cv_add', $entryid);
+}
+
+/**
+ * Define CV entry edit form.
+ */
+function afo_cv_add(&$form_state, $entryid=0) {
+	
+	// set user uid for this CV
+	global $user;
+	$uid = $user->uid;
+	
+	if($entryid > 0) {
+		$entry_data = afo_cv_getentry($entryid);
+		if(is_array($entry_data) && $entry_data['uid']==$uid) $edit_existing = TRUE;
+		
+		$form['entryid'] = array(
+			'#type' => 'value',
+			'#value' => $entryid,
+		);
+	}
+	
+	$form['uid'] = array(
+		'#type' => 'value',
+		'#value' => $uid,
+	);
+
+	$form['typeid'] = array(
+		'#title' => t('CV category'),
+		'#type' => 'select',
+		'#options' => afo_cv_entrytypes('select'),
+		'#default_value' => $entry_data['typeid'],
+		'#required' => TRUE,
+	);
+	
+	if($edit_existing) $default_year = $entry_data['year'];
+	else $default_year = date('Y');
+	$form['year'] = array(
+		'#title' => t('Year'),
+		'#type' => 'textfield',
+		'#required' => TRUE,
+		'#default_value' => $default_year,
+		'#size' => 6,
+		'#maxlength' => 4,
+	);
+	$form['details'] = array(
+		'#title' => t('Title / Details'),
+		'#description' => t('Name of the show, degree, etc.'),
+		'#type' => 'textfield',
+		'#required' => TRUE,
+		'#default_value' => $entry_data['details'],
+		'#maxlength' => 255,
+	);
+	$form['venue'] = array(
+		'#title' => t('Venue or Institution name and place'),
+		'#description' => t('E.g. "Artists Space, New York."'),
+		'#type' => 'textfield',
+		'#required' => TRUE,
+		'#default_value' => $entry_data['venues_name'],
+		'#maxlength' => 255,
+		'#autocomplete_path' => 'afo-cv/autocomplete/venue',
+	);
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Save'),
+	);
+	if($entryid > 0) {
+		$form['delete'] = array(
+			'#type' => 'submit',
+			'#value' => t('Delete'),
+			'#submit' => array('afo_cv_delete_submit'),
+		);
+	}
+	
+	return $form;
+}
+/**
+ * Validate CV entry form.
+ */
+function afo_cv_add_validate($form, &$form_state) {
+	if(!is_numeric($form_state['values']['year'])) {
+		form_set_error('year', t('Year must be a number.'));
+	}
+}
+/**
+ * Add CV entry submit.
+ */
+function afo_cv_add_submit($form, &$form_state) {
+
+	$uid = $form_state['values']['uid'];
+	$form_state['redirect'] = "user/$uid/cv/edit";
+
+	// venue record
+	$venueid = db_result(db_query("SELECT venueid FROM {afo_cv_venues} WHERE name = '%s'", $form_state['values']['venue']));
+	if(!is_numeric($venueid)) {
+		// insert as new venue
+		$venuerecord = new stdClass();
+		$venuerecord->name = $form_state['values']['venue'];
+		drupal_write_record('afo_cv_venues', $venuerecord);
+		$venueid = $venuerecord->venueid;
+	}
+
+	// show record
+	$record = new stdClass();
+	$record->entryid = $form_state['values']['entryid'];
+	$record->uid = $form_state['values']['uid'];
+	$record->details = $form_state['values']['details'];
+	$record->year = $form_state['values']['year'];
+	$record->url = $form_state['values']['url'];
+	$record->venueid = $venueid;
+	$record->typeid = $form_state['values']['typeid'];
+	
+	if($record->entryid) $result = drupal_write_record('afo_cv_entries', $record, 'entryid'); // Update if id is present
+	else $result = drupal_write_record('afo_cv_entries', $record); // else Insert new
+	
+	switch($result) {
+		case FALSE:
+			drupal_set_message(t('Failed to add or update CV entry.'));
+			break;
+		case 'SAVED_NEW':
+			drupal_set_message(t('Added new CV entry.'));
+			break;
+		case 'SAVED_UPDATED':
+			drupal_set_message(t('Updated CV entry.'));
+			break;
+	}
+}
+/**
+ * Delete CV entry submit.
+ */
+function afo_cv_delete_submit($form, &$form_state) {
+
+	$uid = $form_state['values']['uid'];
+	$form_state['redirect'] = "user/$uid/cv";
+
+	global $user;
+	if($uid == $user->uid) {
+		$entryid = $form_state['values']['entryid'];
+		if(is_numeric($entryid)) {
+			$result = db_query('DELETE FROM {afo_cv_entries} WHERE entryid = %d', $entryid);
+			if($result) drupal_set_message(t('CV entry successfully deleted.'));
+		}
+	}
+}
+
+/**
+ * Define CV text edit form.
+ */
+function afo_cv_edit_text(&$form_state) {
+	// set user uid for this CV
+	global $user;
+	$uid = $user->uid;
+	
+	$cv_text = db_result(db_query('SELECT body FROM {afo_cv_text} WHERE uid = %d', $uid));
+	
+	$form['uid'] = array(
+		'#type' => 'value',
+		'#value' => $uid,
+	);
+	$form['cv-text']['cv-text-body'] = array(
+		'#type' => 'textarea',
+		'#title' => t('CV (Text Only)'),
+		'#description' => t('Instead of adding each CV entry separately, you can paste it as a single block of text. A text block CV, however, is not as searchable as a line-by-line CV. Therefore, to be more easily found, we <b>highly recommend</b> entering important CV data as individual items (above).'),
+		'#default_value' => $cv_text,
+		'#rows' => 25,
+		'#resizable' => true,
+	);
+	$form['cv-text']['format'] = filter_form(null);
+	$form['submit'] = array(
+		'#type' => 'submit',
+		'#value' => t('Save'),
+	);
+
+	return $form;
+}
+/**
+ * Submit CV text edit form.
+ */
+function afo_cv_edit_text_submit($form, &$form_state) {
+	$uid = $form_state['values']['uid'];
+	if(is_numeric($uid)) {
+		$record = new stdclass;
+		$record->uid = $uid;
+		$record->body = $form_state['values']['cv-text-body'];
+		
+		$existing = db_result(db_query('SELECT uid FROM {afo_cv_text} WHERE uid = %d', $uid));
+		if($existing) $table_key = 'uid';
+		
+		$result = drupal_write_record('afo_cv_text', $record, $table_key);
+	}
+}
+
+
+
+/**
+ * Return single CV entry.
+ */
+function afo_cv_getentry($entryid) {
+	$query = db_query('SELECT cv.*, venues.name AS venues_name
+	FROM {afo_cv_entries} cv 
+	LEFT JOIN {afo_cv_venues} venues ON cv.venueid = venues.venueid 
+	WHERE cv.entryid = %d', $entryid);
+	
+	return db_fetch_array($query);
+}
+
+/**
+ * Return user CV as array, divided by entry type.
+ */
+function afo_cv_getcv($uid) {
+	$query = db_query('SELECT cv.*, venues.name AS venues_name
+	FROM {afo_cv_entries} cv 
+	LEFT JOIN {afo_cv_venues} venues ON cv.venueid = venues.venueid 
+	WHERE cv.uid = %d 
+	ORDER BY cv.typeid ASC, cv.year DESC, cv.details ASC'
+	, $uid);
+	
+	while($row = db_fetch_array($query)) {
+		$user_cv[$row['typeid']][] = $row;
+	}
+	
+	$cv_text = db_result(db_query('SELECT body FROM {afo_cv_text} WHERE uid = %d', $uid));
+	if($cv_text) $user_cv['text'] = $cv_text;
+
+	return $user_cv;
+}
+
+/**
+ * Check if user has any CV items
+ */
+function afo_cv_checkcv($uid) {
+	if(!is_numeric($uid)) return false;
+	$result = db_result(db_query('SELECT entryid FROM {afo_cv_entries} WHERE uid = %d', $uid));
+	if(!$result) $result = db_result(db_query('SELECT uid FROM {afo_cv_text} WHERE uid = %d', $uid));
+	if($result) return true;
+	return false; 
+}
+
+/**
+ * Form submit for CV index
+ */
+function afo_cv_index_formsubmit($form, &$form_state) {
+	$val = $form_state['values']['indexsearch'];
+	if(module_exists('afo_browsenav2')) {
+		$params = array(
+			'type' => array('artists'),
+			'sort' => array('popular'),
+			'textsearch' => array($val),
+			'textsearchtype' => array('venue'),
+		);
+		$args = afo_browsenav2_params_to_args($params);
+		$url = afo_browsenav2_args_to_URL($args);
+		
+		if($url) drupal_goto($url);
+	}
+}
+
+
+/**
+ * Implementation of hook_views_data()
+ */
+function afo_cv_views_data() {
+
+	/* ********************************************************************* CV entries table */
+	// Define the base group of this table. Fields that don't
+	// have a group defined will go into this field by default.
+	$data['afo_cv_entries']['table']['group']  = t('AFO CV');
+	
+	// For other base tables, explain how we join
+	$data['afo_cv_entries']['table']['join'] = array(
+		// Directly links to node table.
+		'users' => array(
+			'left_field' => 'uid',
+			'field' => 'uid',
+			),
+	);
+	
+	$data['afo_cv_entries']['uid'] = array(
+		'title' => t('User uid'),
+		'help' => t('User uid of the CV owner.'),
+		'field' => array(
+			'field' => 'uid',
+			'group' => t('AFO CV'),
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);			
+
+	$data['afo_cv_entries']['details'] = array(
+		'title' => t('Entry details'),
+		'help' => t('Details about the entry.'),
+		'field' => array(
+			'field' => 'details',
+			'group' => t('AFO CV'),
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+	$data['afo_cv_entries']['year'] = array(
+		'title' => t('Year'),
+		'field' => array(
+			'field' => 'year',
+			'group' => t('AFO CV'),
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+	
+	/* ********************************************************************* venues table */	
+
+	$data['afo_cv_venues']['table']['group']  = t('AFO CV');
+	
+	$data['afo_cv_venues']['table']['join'] = array(
+		'users' => array(
+			'left_table' => 'afo_cv_entries',
+			'left_field' => 'venueid',
+			'field' => 'venueid',
+		),
+	);
+
+	$data['afo_cv_venues']['name'] = array(
+		'title' => t('Venue Name'),
+		'help' => t('Name of the venue.'),
+		'field' => array(
+			'field' => 'name',
+			'group' => t('AFO CV'),
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+
+
+	return $data;
+}
+
+/**
+ * Implementation of hook_theme().
+ * Initialize module's themable functions.
+ */
+function afo_cv_theme() {
+  return array(
+    'afo_cv_create_link' => array(
+      'file' => 'afo_cv.display.inc',
+      'arguments' => array(
+      	'term' => null, 
+      	'op' => null,
+      ),
+    ),
+    'afo_cv_entries' => array(
+      'file' => 'afo_cv.display.inc',
+      'arguments' => array(
+      	'cv' => array(),
+      	'editable' => false,
+      ),
+    ),
+  );
+}

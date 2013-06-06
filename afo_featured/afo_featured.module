@@ -1,0 +1,328 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Allows admins to feature nodes and users.
+ */
+
+
+/***************************************** settings **/
+
+/**
+ * Get admin settings for content types.
+ */
+function afo_featured_gettypes($for = 'node') {
+	switch($for) {
+		case 'node':
+			return variable_get('afo_featured_node_types', NULL);
+	}
+}
+
+/**
+ * Return array of all the feature types.
+ */
+function afo_featured_get_feature_types() {
+	$query = db_query('SELECT feature_id, feature_name FROM {afo_featured_types} ORDER BY feature_id DESC');
+	while($row = db_fetch_array($query)) {
+		$result[$row['feature_id']] = $row['feature_name'];
+	}
+	return $result;
+}
+
+
+/***************************************** drupal functions **/
+
+/**
+ * Implementation of hook_menu().
+ */
+function afo_featured_menu() {
+	$items['admin/settings/afo/afo-featured'] = array(
+		'title' => 'AFO Featured Settings',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_featured_admin_settings'),
+		'access arguments' => array('administer site settings'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_featured.admin.inc',
+	);
+	
+	$items['editor/featured/types'] = array(
+		'title' => 'Feature Types',
+		'page callback' => 'afo_featured_admin_types_page',
+		'access arguments' => array('administer feature types'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_featured.editor.inc',
+	);
+
+	$items['editor/featured/types/edit'] = array(
+		'title' => 'Edit Feature Type',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_featured_admin_types'),
+		'access arguments' => array('administer feature types'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_featured.editor.inc',
+	);
+
+	$items['editor/featured/edit_item'] = array(
+		'title' => 'Edit featured item',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_featured_admin_edit_item'),
+		'access arguments' => array('administer featured items'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_featured.editor.inc',
+	);
+
+	$items['editor/curating'] = array(
+		'title' => 'Curating',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_featured_editor_curating'),
+		'access arguments' => array('administer curating'),
+		'type' => MENU_CALLBACK,
+		'file' => 'afo_featured.editor.inc',
+	);
+	
+	$items['featured/add'] = array(
+		'title' => 'Feature item',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_featured_addform'),
+		'access arguments' => array('add featured status'),
+		'file' => 'afo_featured.editor.inc',
+	);
+	
+	$items['curated'] = array(
+		'title' => 'Curated',
+		'description' => 'Browse curated selection of exhibitions and artists',
+		'page callback' => 'afo_featured_browsepage',
+		'access arguments' => array('access content'),
+		'file' => 'afo_featured.browse.inc',
+	);	
+
+	return $items;
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function afo_featured_perm() {
+	return array('add featured status', 'administer feature types', 'administer featured items', 'administer curating');
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_featured_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = t('afo_featured: Feature this');
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+			return $blocks;
+			
+		case 'view':
+			// access check
+			if(user_access('add featured status')) {
+		
+				// make sure there are types enables to be added
+				$itemtypes = afo_featured_gettypes('node');
+	
+				// make sure this is a node or user
+				if(arg(0)=='user' || (arg(0)=='node' && count($itemtypes) > 0))  {
+				
+					if(arg(0)=='node') {
+						$node = node_load(arg(1));
+						$nid = $node->nid;
+						$uid = $node->uid;
+					}
+					elseif(arg(0)=='user') {
+						$nid = 0;
+						$uid = arg(1);
+					}
+					else return NULL;
+	
+					// check if this node is in item types 
+					if(arg(0)=='node' && !$itemtypes[$node->type]) return NULL;
+					
+					// show block
+					module_load_include('inc', 'afo_featured', 'afo_featured.editor');
+					$block['subject'] = t('Feature this');
+					$block['content'] = l(t('Feature this'), "featured/add/$nid/$uid");
+					//$block['content'] .= drupal_get_form('afo_featured_addform', $nid, $uid);
+					return $block;
+					
+				}
+			}
+			
+			return NULL;
+	}
+}
+
+/**
+ * Implementation of hook_theme.
+ */
+function afo_featured_theme() {
+  return array(
+    'afo_featured_item' => array(
+      'file' => 'afo_featured.display.inc',
+      'arguments' => array(
+      	'item_id' => array(), 
+      	'op' => null,
+      ),
+    ),
+    'afo_featured_mostrecent' => array(
+      'file' => 'afo_featured.display.inc',
+      'arguments' => array(
+      	'feature_id' => null,
+      	'total' => null,
+      ),
+    ),
+	'afo_featured_feature_type' => array(
+      'file' => 'afo_featured.browse.inc',
+      'arguments' => array(
+      	'feature' => null,
+      ),
+    ),
+	'afo_featured_featured_listing' => array(
+      'file' => 'afo_featured.browse.inc',
+      'arguments' => array(
+      	'featured' => null,
+      	'type' => 'node',
+      	'thumb' => false,
+      ),
+    ),
+  );	
+}
+
+/**
+ * Implementation of hook_user.
+ */
+function afo_featured_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+		case 'delete':
+			// remove featured users
+			if(is_numeric($account->uid)) {
+				// remove featured users
+				db_query('DELETE FROM {afo_featured_users} WHERE uid = %d', $account->uid);
+			}
+			break;
+	}
+}
+
+
+/**
+ * Implementation of hook_nodeapi.
+ */
+function afo_featured_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+	switch($op) {
+		case 'delete':
+			// remove featured nodes from db
+			if(is_numeric($node->nid)) {
+				// remove featured nodes
+				db_query('DELETE FROM {afo_featured_nodes} WHERE nid = %d', $node->nid);
+			}
+			
+			break;
+	}
+}
+ 
+/***************************************** db functions **/
+
+/**
+ * Return featured item data from DB.
+ */
+function afo_featured_getitem($item_id, $op='node') {
+
+	if(is_numeric($item_id)) {
+		if($op=='user') {
+
+			$sql = '
+			SELECT f.*, t.*, u.name
+			FROM {afo_featured_users} f
+			LEFT JOIN {afo_featured_types} t ON t.feature_id = f.feature_id
+			LEFT JOIN {users} u ON u.uid = f.uid
+			WHERE featured_id = %d
+			';
+		}
+		else {
+			$sql = '
+			SELECT f.*, t.*, n.title, u.name
+			FROM {afo_featured_nodes} f
+			LEFT JOIN {afo_featured_types} t ON t.feature_id = f.feature_id
+			LEFT JOIN {node} n ON n.nid = f.nid
+			LEFT JOIN {users} u ON u.uid = n.uid
+			WHERE featured_id = %d
+			';
+		}
+
+		$query = db_query($sql, $item_id);
+		
+		if($result = db_fetch_object($query)) {
+			return $result;
+		}
+	}
+	
+	return FALSE;
+}
+
+/**
+ * Check if featured already.
+ */
+function afo_featured_check($val, $feature_id, $op='node') {
+
+	if(is_numeric($val) && is_numeric($feature_id)) {
+		if($op=='user') {
+			$query = db_query('SELECT * FROM {afo_featured_users} WHERE uid=%d AND feature_id=%d', $val, $feature_id);
+		}
+		else {
+			$query = db_query('SELECT * FROM {afo_featured_nodes} WHERE nid=%d AND feature_id=%d', $val, $feature_id);
+		}
+		
+		while($row = db_fetch_array($query)) {
+			$result[] = $row;
+		}
+		
+		return $result;
+	}
+	
+	return FALSE;
+}
+
+/**
+ * Return recent featured items.
+ */
+function afo_featured_getrecent($op = 'node', $total = 5) {
+
+	if($op=='user') {
+		$sql = 'SELECT featured_id FROM {afo_featured_users} ORDER BY updated DESC';
+	}
+	else {
+		$sql = 'SELECT featured_id FROM {afo_featured_nodes} ORDER BY updated DESC';
+	}
+	
+	$result = db_query_range(db_rewrite_sql($sql), 0, $total); 
+	while ($row = db_fetch_object($result)) {
+		$items[] = $row->featured_id;
+	}
+
+	return $items;
+
+}
+
+/**
+ * Return recent featured items within specific feature type.
+ */
+function afo_featured_mostrecent($feature_id, $total = 5) {
+	if(!is_numeric($feature_id)) return null;
+
+	$featured = array();
+	
+	// get nodes
+	$sql = 'SELECT featured_id FROM {afo_featured_nodes} WHERE feature_id = %d ORDER BY updated DESC';
+	$result = db_query_range(db_rewrite_sql($sql), $feature_id, 0, $total); 
+	while ($row = db_fetch_object($result)) {
+		$items[] = $row->featured_id;
+	}
+
+	return $items;
+
+}

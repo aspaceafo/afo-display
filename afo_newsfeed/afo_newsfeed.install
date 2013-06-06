@@ -1,0 +1,82 @@
+<?php
+// $Id$
+
+function afo_newsfeed_install() {
+	drupal_install_schema('afo_newsfeed');
+}
+
+function afo_newsfeed_uninstall() {
+	drupal_uninstall_schema('afo_newsfeed');
+}
+
+function afo_newsfeed_schema() {
+	$schema['afo_newsfeed_events'] = array(
+		'description' => t('Records user events for newsfeed output.'),
+		'fields' => array(
+			'event_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('Primary key: unique event id.'),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The user {user}.uid initiating the event.')
+			),
+			'type_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The event type id.')
+			),
+			'timestamp' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Event timestamp.')
+			),
+			'arg0' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Event details argument 1.')
+			),
+			'arg1' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Event details argument 2.')
+			),
+			'arg2' => array(
+				'type' => 'varchar',
+				'length' => 255,
+				'not null' => FALSE,
+				'description' => t('Event details argument 3.')
+			),
+		),
+		'primary key' => array(
+			'event_id',
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'type_id' => array('type_id'),
+			'timestamp' => array('timestamp'),
+		),
+	);
+
+	return $schema;
+	
+}
+
+/**
+ * Add index for timestamp
+ */
+function afo_newsfeed_update_6000() {
+	$ret = array();
+	db_add_index($ret, 'afo_newsfeed_events', 'timestamp', array('timestamp'));
+	return $ret;
+}

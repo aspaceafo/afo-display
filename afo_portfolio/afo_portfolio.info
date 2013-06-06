@@ -1,0 +1,6 @@
+; $Id$
+name = AFO Portfolio
+description = Handles portfolio functions for AFO site.
+core = 6.x
+package = AFO Custom
+dependencies[] = afo_display

@@ -1,0 +1,158 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Custom import module for bringing in old DB data to new AFO site.
+ */
+ 
+/**
+ * Implementation of hook_menu().
+ */
+function afo_import_menu() {
+	$items['admin/content/afo_import'] = array(
+		'title' => 'AFO Import',
+		'description' => 'Import data from old AFO database',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_import_page'),
+		'access arguments' => array('administer content'),
+		'file' => 'afo_import.import.inc',
+		'weight' => 20,
+	);
+
+	$items['admin/settings/afo/import'] = array(
+		'title' => 'AFO Import Settings',
+		'description' => 'Admin settings for AFO Import module',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_import_admin_settings'),
+		'file' => 'afo_import.admin.inc',
+		'access arguments' => array('administer content'),
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	$items['afo-import/do'] = array(
+		'description' => 'AJAX callback for import page',
+		'page callback' => 'afo_import_do',
+		'file' => 'afo_import.import.inc',
+		'access arguments' => array('administer content'),
+		'type' => MENU_CALLBACK,
+	);
+	
+	return $items;
+}
+
+/**
+ * Import form submit.
+ */
+function afo_import_page_submit($form, &$form_state) {
+	global $user;
+	if(!$user->uid == 1) die('Unauthorized');
+
+	module_load_include('inc', 'afo_import', 'afo_import.import');
+	$import_users = afo_import_getImportData();
+
+	foreach($import_users as $import_user) {
+		if($form_state['values']['import-table'][$import_user->obj_data['source_id']]['import'] == 1) {
+			$import_user->import_do(true);
+		}
+	}
+
+	
+}
+
+function afo_import_theme() {
+  return array(
+    'afo_import_page' => array(
+      'arguments' => array('form' => NULL),
+  	  'file' => 'afo_import.admin.inc',
+    ),
+  );
+}
+
+/******************************************** EXTERNAL DB OPERATIONS **/
+
+// connect to db and run query
+function afo_import_getExternalData($q) {
+
+	/************************* DB open **/
+	$link = mysql_connect ('66.178.176.123', 'cleardev2_afo', 'letha38');
+	if(!$link) return("Couldn't connect to MySql");
+	mysql_select_db ('cleardev2_afo');
+	mysql_set_charset('utf8', $link); 
+
+	/************************* Import operations **/	
+	$query = mysql_query($q);
+	while ($row = mysql_fetch_array($query)) {
+		$results[] = $row;
+	}
+	
+	/************************* DB close **/	
+	mysql_close($link);		
+
+	return $results;
+}
+
+
+// connect to db and run query
+function afo_import_getImportData() {
+
+	/************************* DB open **/
+	$link = mysql_connect ('66.178.176.123', 'cleardev2_afo', 'letha38');
+	if(!$link) return("Couldn't connect to MySql");
+	mysql_select_db ('cleardev2_afo');
+	mysql_set_charset('utf8', $link); 
+	
+	/************************* Import operations **/	
+	$query = afo_import_build_query();
+	$import_users = afo_import_process_query($query, 'ImportUser');
+	
+	/************************* DB close **/	
+	mysql_close($link);		
+
+	return $import_users;
+}
+
+// process query and create objects
+function afo_import_process_query($q, $obj_type='ImportUser') {
+
+	$import_objects = array();
+	
+	$query = mysql_query($q);
+	while ($row = mysql_fetch_array($query)) {
+		if($obj_type == 'TaxonomyTerm') $import_objects[] = $row;
+		else $import_objects[] = new $obj_type($row);
+	}	
+
+	return $import_objects;
+}
+
+
+/**
+ * Try to determine user's a_id
+ */
+function afo_import_get_a_id($uid) {
+	if(!is_numeric($uid)) return null;
+
+	// try to get $a_id from import records
+	if(!$a_id) $a_id = db_result(db_query('SELECT source_id FROM {afo_import_record_users} WHERE uid = %d', $uid));
+	
+	// try to get $a_id from old DB using email
+	if(!$a_id) {
+		$mail = db_result(db_query('SELECT mail FROM {users} WHERE uid = %d', $uid));
+		//if($uid == 1) $mail = 'lcappiello597@verizon.net'; //'edward.clement.lee@gmail.com';
+		if($mail) {
+			// try users table first
+			$q = "SELECT u_id FROM users WHERE user LIKE '$mail'";
+			$a_data = afo_import_getExternalData($q);
+			if(is_numeric($a_data[0]['u_id'])) return $a_data[0]['u_id'];
+
+			// try artists table
+			$q = "SELECT a_id FROM artists WHERE user LIKE '$mail'";
+			$a_data = afo_import_getExternalData($q);
+			if(is_numeric($a_data[0]['a_id'])) $a_id = $a_data[0]['a_id'];
+		}
+	}
+
+	return $a_id;
+}

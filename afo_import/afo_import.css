@@ -1,0 +1,27 @@
+.no-import-ready
+{
+	color: #ff0000;
+}
+
+.afo-import-table tr.in-db
+{
+	background-color: #fff;
+}
+table.afo-import-table td
+{
+	vertical-align: top;
+}
+
+.import-user,
+.import-artwork
+{
+	margin: 0;
+	line-height: 19px;
+}
+.import-user
+{
+}
+.import-artwork
+{
+	margin-left: 15px;
+}

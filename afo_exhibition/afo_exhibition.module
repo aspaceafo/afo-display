@@ -1,0 +1,529 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Adds custom functionality to Exhbition content type (specified by admin).
+ */
+ 
+
+/************************************************************* settings **/
+
+/**
+ * Returns content type set by admin for Exhibition.
+ */
+function afo_exhibition_gettypes($for = 'exhibition') {
+	switch($for) {
+		case 'exhibition':
+			return variable_get('afo_exhibition_content_type', NULL);
+		case 'item':
+			return variable_get('afo_exhibition_item_types', array());
+	}
+}
+
+/**
+ * Returns permission name for create/edit Exhibition content type.
+ */
+function afo_exhibition_getperm() {
+	$exhibition_type = afo_exhibition_gettypes('exhibition');
+	return "create $exhibition_type content";
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function afo_exhibition_theme() {
+  return array(
+    'afo_exhibition_itemstable' => array(
+		'arguments' => array('form' => NULL),
+		'file' => 'afo_exhibition.curate.inc',
+    ),
+  );
+}
+
+/************************************************************* display functions **/
+
+/**
+ * Implementation of hook_nodeapi().
+ */
+function afo_exhibition_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
+	// check if node type is that set by admin as exhibition
+	if($node->type == afo_exhibition_gettypes('exhibition')) {
+		switch($op) {
+			case 'load':
+				$node->exhibition_items = afo_exhibition_getitems($node->nid);
+				break;
+				
+			case 'view':
+				module_load_include('inc', 'afo_exhibition', 'afo_exhibition.display');
+				afo_exhibition_nodedisplay($node);
+				break;
+		}
+	}
+	
+	// if node being deleted, remove from exhibition_items table
+	if($op == 'delete') {
+		if(is_numeric($node->nid)) {
+			// only remove if item_nid matches -- keep exhibition_nid, just in case
+			db_query('DELETE FROM {afo_exhibition_items} WHERE item_nid = %d', $node->nid);
+		}			
+	}
+}
+
+/**
+ * Implementation of hook_user.
+ * Add curating overview to user page.
+ */
+function afo_exhibition_user($op, &$edit, &$account, $category = NULL) {
+	switch($op) {
+		case 'view':
+			$exhibitions = afo_exhibition_user_exhibitions($account->uid, 'nids');
+			if($exhibitions) {
+				$exhibitions = theme('afo_display_grid', $exhibitions, null, 'exhibitions');
+				$account->content['exhibitions'] = array(
+					'#type' => 'user_profile_item',
+					'#title' => t('Curated Exhibitions'),
+					'#weight' => -10,
+					'#value' => $exhibitions,
+				);
+			}
+			break;
+	}
+}
+
+/**
+ * Implementation of hook_form_alter(). Alter the exhibition node form.
+ */
+function afo_exhibition_form_alter(&$form, $form_state, $form_id) {
+	// check if exhibition type node form:
+	if($form['#node']->type == afo_exhibition_gettypes('exhibition')) {
+		module_load_include('inc', 'afo_exhibition', 'afo_exhibition.curate');
+		afo_exhibition_formalter($form, $form_state);
+	}
+}
+
+/**
+ * Exhibition thumbnail
+ */
+function afo_exhibition_thumbnail($exhibition_nid, $options=array()) {
+	if(!is_numeric($exhibition_nid)) return null;
+	$items = afo_exhibition_getitems($exhibition_nid);
+	if(!is_numeric($items[0]->item_nid)) return null;
+	$thumb = theme('afo_display_node_thumbnail', $items[0]->item_nid, null, 'node/'.$exhibition_nid, $options);
+	return $thumb;
+}
+
+/************************************************************* db functions **/
+
+/**
+ * Check whether item is already in exhibition.
+ */
+function afo_exhibition_checkitem($exhibition_nid, $item_nid) {
+	if(is_numeric($exhibition_nid) && is_numeric($item_nid)) { 
+		$exists_check = db_result(db_query('SELECT exhibition_nid FROM {afo_exhibition_items} WHERE exhibition_nid = %d AND item_nid = %d', $exhibition_nid, $item_nid));
+	
+		if($exists_check) return 'y';
+		else return 'n';
+	}
+	return FALSE;
+}
+
+/**
+ * Return user's exhibitions.
+ */
+function afo_exhibition_user_exhibitions($uid, $op='nids') {
+	if(is_numeric($uid)) {
+		$exhibition_type = afo_exhibition_gettypes('exhibition');
+		$query = db_query("SELECT nid, title FROM {node} WHERE uid = %d AND type = '%s' ORDER BY created DESC", $uid, $exhibition_type);
+	
+		while($row = db_fetch_object($query)) {
+			if($op == 'select') $exhibitions[$row->nid] = $row->title;
+			else $exhibitions[] = $row->nid;
+		}
+		
+		return $exhibitions;
+	}
+	return FALSE;
+}
+
+/**
+ * Return exhibition's items.
+ */
+function afo_exhibition_getitems($exhibition_nid) {
+	if(!is_numeric($exhibition_nid)) return null;
+	
+	$query = db_query("SELECT afo_ex.*, n.title, u.name, u.uid 
+	FROM {afo_exhibition_items} afo_ex
+	INNER JOIN {node} n ON n.nid = afo_ex.item_nid
+	INNER JOIN {users} u ON u.uid = n.uid
+	WHERE exhibition_nid = %d 
+	ORDER BY item_weight ASC, updated ASC
+	", $exhibition_nid);
+
+	while($row = db_fetch_object($query)) {
+		$exhibitions[] = $row;
+	}
+	
+	return $exhibitions;
+}
+
+/**
+ * Return item's exhibitions.
+ */
+function afo_exhibition_getexhibitions($item_nid, $op = 'normal') {
+	if(!is_numeric($item_nid)) return null;
+	
+	$query = db_query("SELECT node.nid, node.title 
+		FROM {node} node 
+		LEFT JOIN {afo_exhibition_items} afo_ex 
+		ON node.nid = afo_ex.exhibition_nid 
+		WHERE afo_ex.item_nid = %d
+		ORDER BY afo_ex.updated DESC", $item_nid);
+
+	while($row = db_fetch_array($query)) {
+		if($op == 'nids') $exhibitions[] = $row['nid'];
+		else $exhibitions[] = $row;
+	}
+	
+	return $exhibitions;
+}
+
+/************************************************************* add form functions **/
+
+/**
+ * Add node to exhibition.
+ */
+function afo_exhibition_addnode($exhibition_nid, $item_nid) {
+	if(afo_exhibition_checkitem($exhibition_nid, $item_nid)=='n') {
+		$record = new stdClass();
+		$record->exhibition_nid = $exhibition_nid;
+		$record->item_nid = $item_nid;
+		$record->updated = time();
+		
+		$success = drupal_write_record('afo_exhibition_items', $record);
+		if($success) drupal_set_message('Item added to exhibition');
+	}
+}
+
+/**
+ * Form display, for use in light box.
+ */
+function afo_exhibition_display_add_form($nid) {
+	if($nid) {
+		return drupal_get_form('afo_exhibition_additemform', $nid);
+	}
+	else print t('Error: No ID passed.');
+}
+
+/**
+ * Form builder: add item to exhibition.
+ */
+function afo_exhibition_additemform(&$form_state, $item_nid) {
+	global $user;
+	if(is_numeric($item_nid) || strpos($item_nid, '-')) {
+	
+		$form['item_nid'] = array(
+			'#type' => 'value',
+			'#value' => $item_nid,
+		);
+		
+		$user_exhibitions = afo_exhibition_user_exhibitions($user->uid, 'select');
+
+		$form['exhibition_nid'] = array(
+			'#type' => 'select',
+			'#title' => 'Choose exhibition',
+			'#options' => $user_exhibitions,
+		);
+		
+		if(strpos($item_nid, '-')) $submit_value = 'Add items';
+		else $submit_value = 'Add item';
+		$form['submit'] = array(
+			'#type' => 'submit',
+			'#value' => t($submit_value),
+		);
+		
+		return $form;
+	}
+
+	return NULL;
+}
+/**
+ * Add item to exhibition form submission
+ */
+function afo_exhibition_additemform_submit($form, &$form_state) {
+	$items = $form_state['values']['item_nid'];
+	$exhibition_nid = $form_state['values']['exhibition_nid'];
+	
+	if(is_numeric($items)) $form_state['redirect'] = 'node/'.$items;
+	else $form_state['redirect'] = 'node/'.$exhibition_nid;
+	
+	if($exhibition_nid > 0) {
+		$items = explode('-', $items);
+		foreach($items as $item_nid) {
+			$checkexists = afo_exhibition_checkitem($exhibition_nid, $item_nid);
+			if($checkexists == 'y') {
+				drupal_set_message('Item already part of that exhibition.', 'error');
+			} else {
+				$record = new stdClass();
+				$record->item_nid = $item_nid;
+				$record->exhibition_nid = $exhibition_nid;
+				$record->updated = time();
+	
+				$success = drupal_write_record('afo_exhibition_items', $record);
+				if($success) {
+					drupal_set_message('Item added to exhibition.');
+					module_invoke_all('exhibition_itemadded', $record);
+				}
+			}
+		}
+	}
+}
+
+/************************************************************* drupal functions **/
+
+/**
+ * Implementation of hook_menu().
+ */
+function afo_exhibition_menu() {
+	$items['admin/settings/afo/afo-exhibition'] = array(
+		'title' => 'AFO Exhibition Settings',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_exhibition_admin_settings'),
+		'access arguments' => array('administer site settings'),
+		'type' => MENU_LOCAL_TASK,
+		'file' => 'afo_exhibition.admin.inc',
+	);
+	
+	$items['exhibition/add-form'] = array(
+		'title' => 'Add to exhibition',
+		'page callback' => 'afo_exhibition_display_add_form',
+		'access arguments' => array(afo_exhibition_getperm()),
+		'type' => MENU_CALLBACK,
+	);
+	
+	return $items;
+}
+
+/**
+ * Implements hook_perm
+ */
+function afo_exhibition_perm() {
+	return array('access private exhibitions');
+}
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_exhibition_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = t('Add to exhibition');
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+			return $blocks;
+			
+		case 'view':
+			// make sure there are types enables to be added
+			$itemtypes = afo_exhibition_gettypes('item');
+			if(count($itemtypes) > 0) {
+			
+				// make sure this is a node
+				if(arg(0)=='node') {
+			
+					// check user permission to create exhibition
+					if(user_access(afo_exhibition_getperm())) {
+						
+						// check if this node is in item types 
+						$node = node_load(arg(1));
+						if($itemtypes[$node->type]) {
+							
+							// show block
+							$block['subject'] = t('Add to exhibit');
+							$block['content'] = drupal_get_form('afo_exhibition_additemform', $node->nid);
+							return $block;
+						}
+					}
+				}
+			}
+			return NULL;
+	}
+}
+
+/**
+ * Call submit exhibition node form.
+ */
+function afo_exhibition_formsubmit($form, &$form_state) {
+	module_load_include('inc', 'afo_exhibition', 'afo_exhibition.curate');
+	_afo_exhibition_formsubmit($form, $form_state);	
+}
+
+/************************************************************* views **/
+
+/**
+ * Implementation of hook_views_data()
+ */
+function afo_exhibition_views_data() {
+
+	/* **************************************************************** Nodes joined to table on item_nid */
+
+	// Define the base group of this table. Fields that don't
+	// have a group defined will go into this field by default.
+	$data['afo_exhibition_items']['table']['group']  = t('AFO Exhibition Items');
+	
+	// For other base tables, explain how we join
+	$data['afo_exhibition_items']['table']['join'] = array(
+		// Directly links to node table.
+		'node' => array(
+			'left_field' => 'nid',
+			'field' => 'item_nid',
+		),
+	);
+
+	// exhibition nid: links item node to exhibition
+	$data['afo_exhibition_items']['exhibition_nid'] = array(
+		'title' => t('Exhibition Node Id'),
+		'help' => t('Id of the exhibition.'), 
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+	// item nid: item nodes within exhibition
+	$data['afo_exhibition_items']['item_nid'] = array(
+		'title' => t('Item Node Id'),
+		'help' => t('Id of the item.'),
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+	
+	// weight: defines item order within exhibition
+	$data['afo_exhibition_items']['item_weight'] = array(
+		'title' => t('Exhibition Item Weight'),
+		'help' => t('Ordering weight of the item within exhibition.'),
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+	);
+    
+	// timestamp
+	$data['afo_exhibition_items']['updated'] = array(
+		'title' => t('Exhibition Item Timestamp'),
+		'help' => t('Timestamp when item is added to exhibition.'),
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+	);
+
+
+	/* **************************************************************** Nodes joined to table on exhibition_nid */
+
+	// Define the base group of this table. Fields that don't
+	// have a group defined will go into this field by default.
+	$data['afo_item_exhibitions']['table']['group']  = t('AFO Item Exhibitions');
+	
+	// For other base tables, explain how we join
+	$data['afo_item_exhibitions']['table']['join'] = array(
+		'node' => array(
+			'table' => 'afo_exhibition_items', // real table, since this is an alias
+			'left_field' => 'nid',
+			'field' => 'exhibition_nid',
+			),
+	);
+
+	// exhibition nid: links item node to exhibition
+	$data['afo_item_exhibitions']['exhibition_nid'] = array(
+		'title' => t('Exhibition Node Id'), // The item it appears as on the UI,
+		'help' => t('Id of the exhibition.'), // The help that appears on the UI,
+		// Information for displaying a title as a field
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		// Information for accepting a title as a filter
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+	);
+
+	// item nid: item nodes within exhibition
+	$data['afo_item_exhibitions']['item_nid'] = array(
+		'title' => t('Item Node Id'), // The item it appears as on the UI,
+		'help' => t('Id of the item.'), // The help that appears on the UI,
+		// Information for displaying a title as a field
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+		// Information for accepting a title as a filter
+		'filter' => array(
+			'handler' => 'views_handler_filter_string',
+		),
+		'argument' => array(
+			'handler' => 'views_handler_argument_string',
+		),
+/*		'relationship' => array(
+		  'handler' => 'views_handler_relationship',
+		  'base' => 'node',
+		  'field' => 'nid',
+		  'label' => t('exhibition items'),
+		),*/
+	);
+    
+	// timestamp
+	$data['afo_item_exhibitions']['updated'] = array(
+		'title' => t('Exhibition Item Timestamp'), // The item it appears as on the UI,
+		'help' => t('Timestamp when item is added to exhibition.'), // The help that appears on the UI,
+		// Information for displaying a title as a field
+		'field' => array(
+			'handler' => 'views_handler_field_node',
+			'click sortable' => TRUE,
+		),
+		'sort' => array(
+			'handler' => 'views_handler_sort',
+		),
+	);
+	
+	
+	
+	return $data;
+	
+}

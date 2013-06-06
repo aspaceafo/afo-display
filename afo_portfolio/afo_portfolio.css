@@ -1,0 +1,132 @@
+
+.horiz-clear {
+	height: 1px;
+	overflow: hidden;
+	clear: both;
+}
+
+/********************** PORTFOLIO VIEW **/
+div.portfolio
+{
+	margin: 15px 0;
+	width: 600px;
+}
+.portfolio .portfolio-folder
+{
+	clear: both;
+	margin: 30px 0;
+}
+.portfolio .portfolio-folder .portfolio-folder
+{
+	margin-left: 24px;
+}
+
+.portfolio .portfolio-folder .portfolio-other-thumbnails
+{
+	clear: both;
+	margin-bottom: 40px;
+}
+
+.portfolio .portfolio-artwork
+{
+	float: left;
+	height: 168px;
+	overflow: hidden;
+}
+.portfolio .portfolio-artwork .inner
+{
+	margin: 10px 50px 15px 0;
+	width: 90px;
+	line-height: 1.2em;
+}
+.portfolio .portfolio-folder .portfolio-artwork .inner
+{
+	margin: 10px 25px 15px 24px;
+}
+
+.portfolio-title a,
+.portfolio-title a:link,
+.portfolio-title a:visited,
+.artwork-links .portfolio-title a,
+.artwork-links .portfolio-title a:link,
+.artwork-links .portfolio-title a:visited
+{
+	color: #000000;
+}
+.portfolio-title a:hover,
+.portfolio-title a:focus
+{
+	text-decoration: none;
+}
+.portfolio .portfolio-folder .portfolio-title
+{
+	font-size: 1.2em;
+	margin-bottom: 5px;
+}
+.portfolio .portfolio-folder .portfolio-title .artwork-count
+{
+	color: #bbbbbb;
+	font-size: .85em;
+}
+.portfolio .portfolio-artwork .portfolio-title
+{
+	font-size: .85em;
+	font-style: italic;
+}
+
+.portfolio .portfolio-description
+{
+	display: none;
+	margin-left: 24px;
+	font-size: .85em;
+	width: 510px;
+}
+
+/********************** EDIT PAGE **/
+
+#portfolio-edit-table tbody,
+#portfolio-edit-table th
+{
+	border: none;
+}
+#portfolio-edit-table tr
+{
+	border: none;
+	background-color: #ffffff;
+}
+#portfolio-edit-table th, 
+#portfolio-edit-table td
+{
+	padding: 2px 5px;
+}
+#portfolio-edit-table .portfolio-folder td
+{
+	padding: 10px 5px 10px 5px;
+}
+#portfolio-edit-table div.indentation
+{
+	width: 45px;
+}
+#portfolio-edit-table img
+{
+	vertical-align: bottom;
+	margin-right: 10px;
+}
+#portfolio-edit-table .portfolio-folder .item-title
+{
+	font-size: .8em;
+	text-transform: uppercase;
+}
+#portfolio-edit-table .portfolio-artwork .item-title
+{
+	font-style: italic;
+}
+#portfolio-edit-table .portfolio-artwork a.tabledrag-handle .handle
+{
+	margin-top: 18px;
+}
+
+#portfolio-edit-table .edit-link
+{
+	font-size: .8em;
+}

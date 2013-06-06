@@ -1,0 +1,95 @@
+<?php
+// $Id$
+
+function afo_favorite_install() {
+	drupal_install_schema('afo_favorite');
+}
+
+function afo_favorite_uninstall() {
+	drupal_uninstall_schema('afo_favorite');
+//	variable_del('afo_favorite_content_type');
+}
+
+function afo_favorite_schema() {
+	$schema['afo_favorite_nodes'] = array(
+		'description' => t('Stores a user\'s favorite nodes.'),
+		'fields' => array(
+			'fav_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('Primary key id'),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The user {user}.uid.')
+			),
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The favorite {node}.nid.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.')
+			),
+		),
+		'primary key' => array(
+			'fav_id'
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'nid' => array('nid'),
+		),
+	);
+
+	$schema['afo_favorite_users'] = array(
+		'description' => t('Stores a user\'s favorite users.'),
+		'fields' => array(
+			'fav_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'description' => t('Primary key id'),
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The user {user}.uid.')
+			),
+			'fav_uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The favorite {user}.uid.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.')
+			),
+		),
+		'primary key' => array(
+			'fav_id'
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'fav_uid' => array('fav_uid'),
+		),
+
+	);
+	
+	return $schema;
+	
+}

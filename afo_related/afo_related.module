@@ -1,0 +1,118 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Finds related content for AFO site.
+ */
+
+/******************************************** RELATE **/
+
+/**
+ * Get related content.
+ */
+function afo_related_get($val, $op='artwork') {
+	if(is_numeric($val)) {
+		module_load_include('inc', 'afo_related', 'afo_related.relate');
+		return afo_related_get_relatives($val, $op);
+	}
+	return null;
+}
+
+
+ 
+/******************************************** DISPLAY **/
+
+/**
+ * Related block.
+ */
+function afo_related_buildblock($val, $op) {
+	drupal_add_js(drupal_get_path('module', 'afo_related').'/afo_related.js');
+	drupal_add_css(drupal_get_path('module', 'afo_related').'/afo_related.css');
+
+	$relatives = afo_related_get($val, $op);
+
+	if(is_array($relatives) && count($relatives) > 0) {
+		$content = afo_related_print_relatives($relatives, $op);
+		return $content;	
+	}
+
+	return null;
+}
+
+/**
+ * Print relatives
+ */
+function afo_related_print_relatives($relatives, $op='artwork') {
+	if(!is_array($relatives)) return null; 
+	
+	$content .= "<div class='afo-related related-$op'>";
+	
+	foreach($relatives as $val) {
+		$content .= '<div class="related-item">';
+
+		if($op=='user') {
+			$content .= theme('afo_display_user_thumbnail', $val, null, 'user/'.$val);
+		}
+		else {
+			$content .= theme('afo_display_node_thumbnail', $val, null, 'node/'.$val);
+		}
+
+		$content .= '</div>';
+	}
+	
+	$content .= '<div class="horiz-clear">&nbsp;</div>';
+	$content .= '</div>';
+
+	return $content;
+}
+
+
+/**
+ * Implementation of hook_block().
+ */
+function afo_related_block($op = 'list', $delta = 0, $edit = array()) {
+	switch($op) {
+	
+		case 'list':
+			$blocks[0]['info'] = 'afo_related: Related Artwork';
+			$blocks[0]['cache'] = BLOCK_NO_CACHE;
+			return $blocks;
+			
+		case 'view':
+			switch($delta) {
+
+				// browse open calls block
+				case 0:
+					if(arg(0)=='node') $relate_op = 'artwork';
+					elseif(arg(0)=='user') $relate_op = 'user';
+					
+					if($relate_op) {
+						$block['subject'] = t('Related');
+						$block['content'] = afo_related_buildblock(arg(1), $relate_op);
+						return $block;
+					}
+					return FALSE;
+					
+			}
+			break;
+	}
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function afo_related_menu() {
+	$items['admin/settings/afo/afo_related'] = array(
+		'title' => 'AFO Related Settings',
+		'description' => 'Admin settings for AFO Related module',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('afo_related_admin_settings'),
+		'file' => 'afo_related.admin.inc',
+		'access arguments' => array('administer content'),
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	return $items;
+}

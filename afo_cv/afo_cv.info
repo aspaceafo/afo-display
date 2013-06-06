@@ -1,0 +1,5 @@
+; $Id$
+name = AFO CV
+description = Adds CV functionality to user profiles.
+core = 6.x
+package = AFO Custom

@@ -1,0 +1,8 @@
+; $Id$
+name = AFO Open Call
+description = Adds special functionality to AFO open calls.
+core = 6.x
+package = AFO Custom
+dependencies[] = afo_portfolio
+dependencies[] = afo_display
+dependencies[] = afo_backend

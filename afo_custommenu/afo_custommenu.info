@@ -1,0 +1,5 @@
+; $Id$
+name = AFO Custom Menu
+description = Adds special menu alterations for the AFO site.
+core = 6.x
+package = AFO Custom

@@ -1,0 +1,51 @@
+<?php
+// $Id$
+
+function afo_exhibition_install() {
+	drupal_install_schema('afo_exhibition');
+}
+
+function afo_exhibition_uninstall() {
+	drupal_uninstall_schema('afo_exhibition');
+//	variable_del('afo_exhibition_content_type');
+}
+
+function afo_exhibition_schema() {
+	$schema['afo_exhibition_items'] = array(
+		'description' => t('Stores links between exhibition nodes and their item nodes.'),
+		'fields' => array(
+			'exhibition_nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' =>  0,
+				'description' => t('The exhibition {node}.nid.')
+			),
+			'item_nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('The attached item {node}.nid.')
+			),
+			'item_weight' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => false,
+				'description' => t('The ordering weight of the item.')
+			),
+			'updated' => array(
+				'type' => 'int',
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Timestamp.')
+			),
+		),
+		'primary key' => array(
+			'exhibition_nid', 'item_nid'
+		),
+	);
+	
+	return $schema;
+	
+}

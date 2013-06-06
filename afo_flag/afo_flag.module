@@ -1,0 +1,125 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ *
+ * Allows users to flag items.
+ */
+
+
+/********************************** settings **/
+
+/**
+ * Flag types array
+ */
+function afo_flag_types() {
+	return array(
+		0 => 'node',
+	);
+}
+
+/********************************** drupal functions **/
+
+/**
+ * Implementation of hook_menu.
+ */
+function afo_flag_menu() {
+	$items['flag/add'] = array(
+		'title' => 'Add flag',
+		'page callback' => 'afo_flag_flagitem',
+		'access arguments' => array('flag content'),
+		'type' => MENU_CALLBACK,
+	);
+
+	$items['admin/settings/afo/afo_flag'] = array(
+		'title' => t('AFO Flag Settings'),
+		'page callback' => drupal_get_form,
+		'page arguments' => array('afo_flag_admin_settings'),
+		'file' => 'afo_flag.admin.inc',
+		'access arguments' => array('administer site settings'),
+		'type' => MENU_LOCAL_TASK,
+	);
+	
+	$items['editor/flagged'] = array(
+		'title' => t('Flagged content'),
+		'page callback' => drupal_get_form,
+		'page arguments' => array('afo_flag_list'),
+		'file' => 'afo_flag.admin.inc',
+		'access arguments' => array('moderate flags'),
+		'type' => MENU_LOCAL_TASK,
+	);
+
+	return $items;
+}
+
+/**
+ * Implementation of hook_perm.
+ */
+function afo_flag_perm() {
+	return array('flag content', 'moderate flags');
+}
+
+/**
+ * Implementation of hook_link.
+ */
+function afo_flag_link($type, $object, $teaser = false) {
+	if(!user_access('flag content')) return null;
+	
+	if($type == 'node') {
+		// check if flaggable type from admin settings
+		$flag_types = variable_get('afo_flag_node_types', array());
+		if($flag_types[$object->type] === $object->type) {
+			global $user;
+			module_load_include('inc', 'afo_flag', 'afo_flag.db');
+			$existing = afo_flag_getflag($object->nid, $user->uid, 0);
+		
+			if(!$existing) {
+				$val = $object->nid;
+				$type = 0;
+			}
+		}
+	}
+	
+	// if val and type, return link
+	if(is_numeric($val) && is_numeric($type)) {
+		$href = "flag/add/$val/$type";
+		
+		return array(array(
+			'title' => t('Flag inappropriate'),
+			'href' => $href,
+			'attributes' => array(
+				'class' => 'flag-inappropriate',
+			),
+		));
+
+	}
+}
+
+/**
+ * Implementation of hook_theme.
+ */
+function afo_flag_theme() {
+  return array(
+    'afo_flag_list' => array(
+    	'arguments' => array('form' => array()),
+    	'file' => 'afo_flag.admin.inc',
+    ),
+  );
+}
+
+
+/********************************** Flag input **/
+
+/**
+ * Flag a given item.
+ */
+function afo_flag_flagitem($val, $type=0) {
+	if(is_numeric($val) && is_numeric($type)) {
+		module_load_include('inc', 'afo_flag', 'afo_flag.db');
+		afo_flag_putflag($val, $type);
+	}
+	
+	// return to previous page
+	drupal_goto(referer_uri());
+}

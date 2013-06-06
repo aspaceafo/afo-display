@@ -1,0 +1,120 @@
+<?php
+// $Id$
+
+function afo_import_install() {
+	drupal_install_schema('afo_import');
+}
+
+function afo_import_uninstall() {
+	drupal_uninstall_schema('afo_import');
+}
+
+function afo_import_schema() {
+
+	/* ******************************************* user import records */
+	$schema['afo_import_record_users'] = array(
+		'description' => t('Records users imported from old AFO database'),
+		'fields' => array(
+			'record_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'size' => 'normal',
+				'not null' => TRUE,
+				'description' => t('History record id.')
+			),
+			'uid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('Imported to user uid.')
+			),
+			'source_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('Source id value.')
+			),
+			'source_field' => array(
+				'type' => 'varchar',
+				'length' => 200,
+				'not null' => FALSE,
+				'description' => t('Source column field name.')
+			),
+			'source_table' => array(
+				'type' => 'varchar',
+				'length' => 200,
+				'not null' => FALSE,
+				'description' => t('Source table.')
+			),
+			'timestamp' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Import date timestamp.')
+			),
+		),
+		'primary key' => array(
+			'record_id',
+		),
+		'indexes' => array(
+			'uid' => array('uid'),
+			'source_id' => array('source_id'),
+		),
+	);
+
+	/* ******************************************* artwork import records */
+	$schema['afo_import_record_artwork'] = array(
+		'description' => t('Records artwork imported from old AFO database'),
+		'fields' => array(
+			'record_id' => array(
+				'type' => 'serial',
+				'unsigned' => TRUE,
+				'size' => 'normal',
+				'not null' => TRUE,
+				'description' => t('History record id.')
+			),
+			'nid' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('Imported to node nid.')
+			),
+			'source_id' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => FALSE,
+				'description' => t('Source id value.')
+			),
+			'source_field' => array(
+				'type' => 'varchar',
+				'length' => 200,
+				'not null' => FALSE,
+				'description' => t('Source column field name.')
+			),
+			'source_table' => array(
+				'type' => 'varchar',
+				'length' => 200,
+				'not null' => FALSE,
+				'description' => t('Source table.')
+			),
+			'timestamp' => array(
+				'type' => 'int',
+				'unsigned' => TRUE,
+				'not null' => TRUE,
+				'default' => 0,
+				'description' => t('Import date timestamp.')
+			),
+		),
+		'primary key' => array(
+			'record_id',
+		),
+		'indexes' => array(
+			'nid' => array('nid'),
+			'source_id' => array('source_id'),
+		),
+	);
+	
+	return $schema;
+	
+}

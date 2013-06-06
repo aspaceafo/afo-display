@@ -1,0 +1,5 @@
+; $Id$
+name = AFO Import
+description = Imports data from old AFO database to new site.
+core = 6.x
+package = AFO Custom

@@ -1,0 +1,29 @@
+.afo-newsfeed-inner
+{
+}
+.afo-newsfeed .item
+{
+	float: left;
+	width: 90px;
+	margin: 0 10px 0 0;
+}
+.afo-newsfeed .item .details
+{
+	position: absolute;
+	width: 90px;
+	height: 90px;
+	background-color: #fff;
+	z-index: 2500;
+}
+.afo-newsfeed .item .details-inner
+{
+	margin: 5px;
+	overflow: hidden;
+
+	font-size: .85em;
+	line-height: 1.25em;
+}
+.afo-newsfeed .item .details-inner .date
+{
+	color: #999999;
+}

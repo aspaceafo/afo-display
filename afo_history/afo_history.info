@@ -1,0 +1,6 @@
+; $Id$
+name = AFO History
+description = Displays pages viewed in user's session.
+core = 6.x
+package = AFO Custom
+dependencies[] = afo_display

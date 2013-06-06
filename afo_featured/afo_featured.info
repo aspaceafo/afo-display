@@ -1,0 +1,6 @@
+; $Id$
+name = AFO Featured
+description = Allows administrators to feature artists and exhibitions.
+core = 6.x
+package = AFO Custom
+dependencies[] = afo_display

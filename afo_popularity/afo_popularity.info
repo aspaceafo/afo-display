@@ -1,0 +1,6 @@
+; $Id$
+name = AFO Popularity
+description = Tracks popularity of nodes.
+core = 6.x
+dependencies[] = statistics
+package = AFO Custom
